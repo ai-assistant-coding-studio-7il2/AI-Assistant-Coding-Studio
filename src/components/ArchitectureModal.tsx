@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { X, Layers, Cpu, Database, Server, Terminal, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
 import { ARCHITECTURE_GUIDE } from '../data/prompts';
+import apiArchitectureImg from '../assets/images/api_architecture_graphic_1790066692425.jpg';
+import clusterTrainingImg from '../assets/images/ai_cluster_training_1790066706334.jpg';
 
 interface ArchitectureModalProps {
   isOpen: boolean;
@@ -96,6 +98,24 @@ export const ArchitectureModal: React.FC<ArchitectureModalProps> = ({
                 </div>
               </div>
 
+              {/* Architecture 3D Visual Diagram */}
+              <div className="relative overflow-hidden rounded-xl border border-stone-200 dark:border-stone-700 shadow-sm bg-stone-950 group">
+                <img
+                  src={apiArchitectureImg}
+                  alt="API-First Cloud AI Architecture"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-44 sm:h-52 object-cover object-center group-hover:scale-102 transition-transform duration-500 opacity-90"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/40 to-transparent flex items-end p-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <p className="text-xs font-bold text-white tracking-wide">
+                      মডার্ন ক্লাউড এআই আর্কিটেকচার (Client UI + Express Backend + Gemini API + Firestore)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Visual Flow */}
               <div className="p-4 rounded-xl bg-stone-100 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-700/60">
                 <p className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">
@@ -157,6 +177,24 @@ export const ArchitectureModal: React.FC<ArchitectureModalProps> = ({
                   <p className="text-indigo-800/90 dark:text-indigo-300/90 text-xs mt-1 leading-relaxed">
                     AI গবেষক, ডেটা সায়েন্টিস্ট বা যারা মডেলের অভ্যন্তরীণ মেকানিজম (Weight, Attention Matrix, Loss Optimization) নিয়ে হাতে-কলমে শিখতে চান।
                   </p>
+                </div>
+              </div>
+
+              {/* GPU Cluster 3D Visual */}
+              <div className="relative overflow-hidden rounded-xl border border-stone-200 dark:border-stone-700 shadow-sm bg-stone-950 group">
+                <img
+                  src={clusterTrainingImg}
+                  alt="AI Supercomputing & Deep Learning Cluster"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-44 sm:h-52 object-cover object-center group-hover:scale-102 transition-transform duration-500 opacity-90"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-stone-950/90 via-stone-950/40 to-transparent flex items-end p-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+                    <p className="text-xs font-bold text-white tracking-wide">
+                      ডিপ লার্নিং সুপারকম্পিউটিং ও কাস্টম এলএলএম মডেল ট্রেইনিং ইনফ্রাস্ট্রাকচার
+                    </p>
+                  </div>
                 </div>
               </div>
 

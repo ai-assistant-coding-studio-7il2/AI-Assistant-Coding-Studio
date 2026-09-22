@@ -31,6 +31,7 @@ export interface ChatSession {
   messages: ChatMessage[];
   mode: AssistantMode;
   enableSearch: boolean;
+  isGeneratingTitle?: boolean;
 }
 
 export interface QuickPrompt {

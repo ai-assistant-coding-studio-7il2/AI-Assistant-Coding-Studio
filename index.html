@@ -2,13 +2,45 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>AI Assistant & Coding Studio</title>
-    <meta name="description" content="বাংলা ও ইংরেজি ভাষায় কোডিং, লেখালেখি, গবেষণা ও সার্চ গ্রাউন্ডিং সহ পূর্ণাঙ্গ এআই অ্যাসিস্ট্যান্ট।" />
+    <meta name="description" content="বাংলা ও ইংরেজি ভাষায় কোডিং, লেখালেখি, গবেষণা, রিয়েল-টাইম সার্চ গ্রাউন্ডিং এবং ফায়ারবেস ক্লাউড স্টোরেজ ও সিঙ্ক সহ পূর্ণাঙ্গ এআই অ্যাসিস্ট্যান্ট।" />
+    
+    <!-- Filter benign dev-environment logs like [vite] websocket in sandboxed iframe -->
+    <script>
+      (function() {
+        ['error', 'warn'].forEach(function(m) {
+          var orig = console[m];
+          console[m] = function() {
+            var first = arguments[0];
+            if (typeof first === 'string' && first.indexOf('[vite]') !== -1) return;
+            orig.apply(console, arguments);
+          };
+        });
+      })();
+    </script>
+    
+    <!-- PWA & Mobile Web Capabilities -->
+    <meta name="theme-color" content="#059669" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AIAssistant" />
+    <meta name="application-name" content="AI Assistant & Coding Studio" />
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="mask-icon" href="/icon.svg" color="#059669" />
+
+    <!-- OpenGraph & Twitter -->
     <meta property="og:title" content="AI Assistant & Coding Studio" />
-    <meta property="og:description" content="বাংলা ও ইংরেজি ভাষায় কোডিং, লেখালেখি, গবেষণা ও সার্চ গ্রাউন্ডিং সহ পূর্ণাঙ্গ এআই অ্যাসিস্ট্যান্ট।" />
+    <meta property="og:description" content="বাংলা ও ইংরেজি ভাষায় কোডিং, লেখালেখি, গবেষণা, রিয়েল-টাইম সার্চ গ্রাউন্ডিং এবং ফায়ারবেস ক্লাউড স্টোরেজ ও সিঙ্ক সহ পূর্ণাঙ্গ এআই অ্যাসিস্ট্যান্ট।" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">

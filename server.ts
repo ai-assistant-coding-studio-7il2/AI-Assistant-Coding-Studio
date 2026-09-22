@@ -46,11 +46,27 @@ function formatFriendlyErrorMessage(err: any): string {
   ) {
     return 'এআই কোটা সীমা (API Rate Limit / Quota Exceeded 429) সাময়িকভাবে শেষ হয়েছে। অনুরোধের চাপ বেশি থাকায় কিছুক্ষণ পর স্বয়ংক্রিয়ভাবে স্বাভাবিক হবে। অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করে "পুনরায় চেষ্টা করুন" বাটনে ক্লিক করুন অথবা Google Search অফ করে চেষ্টা করুন।';
   }
+  if (errStr.includes('503') || errStr.includes('UNAVAILABLE') || errStr.includes('high demand') || errStr.includes('overloaded')) {
+    return 'গুগল এআই সার্ভার এই মুহূর্তে অতিরিক্ত চাপে রয়েছে (503 Service Unavailable)। স্বয়ংক্রিয়ভাবে বিকল্প মডেলে চেষ্টা করা হচ্ছে... কয়েক সেকেন্ড পর পুনরায় চেষ্টা করুন।';
+  }
+  if (errStr.includes('404') || errStr.includes('NOT_FOUND') || errStr.includes('no longer available')) {
+    return 'অনুরোধকৃত এআই মডেলটি এই মুহূর্তে প্রস্তুত নয় (404 Not Found)। সিস্টেম স্বয়ংক্রিয়ভাবে বিকল্প সক্রিয় মডেলে সংযোগ করছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
+  }
   if (errStr.includes('API_KEY') || errStr.includes('API key not valid')) {
     return 'Gemini API Key পাওয়া যায়নি বা সঠিক নয়। অনুগ্রহ করে সেটিংস থেকে সঠিক API Key যাচাই করুন।';
   }
   return err?.message || 'একটি অপ্রত্যাশিত সমস্যা দেখা দিয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
 }
+
+const FALLBACK_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-3.1-pro-preview',
+];
 
 async function fetchStreamWithResilience(
   ai: any,
@@ -61,10 +77,8 @@ async function fetchStreamWithResilience(
 ) {
   const modelsToTry = [
     modelPreference,
-    'gemini-flash-latest',
-    'gemini-3.1-flash-lite',
-    'gemini-3.1-pro-preview',
-  ].filter((v, i, a) => a.indexOf(v) === i);
+    ...FALLBACK_MODELS,
+  ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
 
   let searchAvailable = enableSearch;
   let lastError: any = null;
@@ -87,9 +101,10 @@ async function fetchStreamWithResilience(
         if (
           errStr.includes('429') ||
           errStr.includes('quota') ||
-          errStr.includes('RESOURCE_EXHAUSTED')
+          errStr.includes('RESOURCE_EXHAUSTED') ||
+          errStr.includes('503')
         ) {
-          await sleep(600);
+          await sleep(500);
         }
       }
     }
@@ -108,9 +123,10 @@ async function fetchStreamWithResilience(
       if (
         errStr.includes('429') ||
         errStr.includes('quota') ||
-        errStr.includes('RESOURCE_EXHAUSTED')
+        errStr.includes('RESOURCE_EXHAUSTED') ||
+        errStr.includes('503')
       ) {
-        await sleep(600);
+        await sleep(500);
       }
     }
   }
@@ -127,10 +143,8 @@ async function fetchContentWithResilience(
 ) {
   const modelsToTry = [
     modelPreference,
-    'gemini-flash-latest',
-    'gemini-3.1-flash-lite',
-    'gemini-3.1-pro-preview',
-  ].filter((v, i, a) => a.indexOf(v) === i);
+    ...FALLBACK_MODELS,
+  ].filter((v, i, a) => Boolean(v) && a.indexOf(v) === i);
 
   let searchAvailable = enableSearch;
   let lastError: any = null;
@@ -151,9 +165,10 @@ async function fetchContentWithResilience(
         if (
           errStr.includes('429') ||
           errStr.includes('quota') ||
-          errStr.includes('RESOURCE_EXHAUSTED')
+          errStr.includes('RESOURCE_EXHAUSTED') ||
+          errStr.includes('503')
         ) {
-          await sleep(600);
+          await sleep(500);
         }
       }
     }
@@ -171,9 +186,10 @@ async function fetchContentWithResilience(
       if (
         errStr.includes('429') ||
         errStr.includes('quota') ||
-        errStr.includes('RESOURCE_EXHAUSTED')
+        errStr.includes('RESOURCE_EXHAUSTED') ||
+        errStr.includes('503')
       ) {
-        await sleep(600);
+        await sleep(500);
       }
     }
   }
@@ -366,6 +382,72 @@ app.post('/api/chat', async (req, res) => {
     console.error('Error in /api/chat:', error);
     res.status(500).json({ error: error?.message || 'Server error occurred.' });
   }
+});
+
+// AI Session Title Generation Endpoint
+app.post('/api/session/title', async (req, res) => {
+  try {
+    const { userMessage, assistantMessage, mode = 'general' } = req.body;
+
+    if (!userMessage && !assistantMessage) {
+      return res.status(400).json({ error: 'Conversation context is required.' });
+    }
+
+    const ai = getAIClient();
+
+    const cleanUser = String(userMessage || '').slice(0, 500).trim();
+    const cleanAssistant = String(assistantMessage || '').slice(0, 800).trim();
+
+    const prompt = `You are a concise conversation titling engine.
+Generate a short, descriptive, and accurate title (3 to 6 words maximum) for this chat session based on the first user-assistant interaction.
+
+Rules:
+1. Length: Exactly 3 to 6 words.
+2. Language: If the user's message is written primarily in Bengali (বাংলা), generate the title in natural, fluent Bengali. If written in English, generate in English.
+3. Content: Capture the specific topic, problem, or objective (e.g. "পাইথনে ডেটা সর্টিং", "রিয়েক্ট হুকস আর্কিটেকচার", "Tailwind CSS Layout Debugging", "জব অ্যাপ্লিকেশনের কভার লেটার").
+4. Format: Return ONLY the title text. Do NOT wrap in quotes. Do NOT add prefixes like "Title:" or "শিরোনাম:". Do NOT add markdown or trailing punctuation like periods or dāri (।).
+
+User message:
+"${cleanUser}"
+
+Assistant response:
+"${cleanAssistant}"`;
+
+    const response = await fetchContentWithResilience(
+      ai,
+      [{ role: 'user', parts: [{ text: prompt }] }],
+      'You generate clear, concise 3-6 word conversation titles.',
+      false, // search disabled for fast, cheap title generation
+      'gemini-3.8-flash'
+    );
+
+    let generatedTitle = response.text || '';
+    // Clean formatting and punctuation
+    let cleaned = generatedTitle
+      .replace(/^(Title|শিরোনাম|শীর্ষক)\s*[:：-]\s*/i, '')
+      .replace(/^["'`“”‘’]+|["'`“”‘’]+$/g, '')
+      .replace(/[*_#~]/g, '')
+      .replace(/[।.\s]+$/g, '')
+      .trim();
+
+    if (!cleaned || cleaned.length > 60) {
+      cleaned = cleanUser.length > 30 ? cleanUser.slice(0, 30) + '...' : cleanUser;
+    }
+
+    res.json({ title: cleaned });
+  } catch (error: any) {
+    console.warn('Error in /api/session/title:', error?.message || error);
+    const fallback = (req.body?.userMessage || 'নতুন কথোপকথন').slice(0, 30);
+    res.json({ title: fallback });
+  }
+});
+
+// JSON 404 response for any unhandled /api/* endpoints
+app.all('/api/*', (req, res) => {
+  res.status(404).json({
+    error: `API route not found: ${req.method} ${req.path}`,
+    status: 404,
+  });
 });
 
 async function startServer() {

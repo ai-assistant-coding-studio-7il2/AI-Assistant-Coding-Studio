@@ -3,6 +3,7 @@ import {
   Plus, 
   MessageSquare, 
   Trash2, 
+  Download,
   Layers, 
   Code2, 
   PenTool, 
@@ -12,9 +13,16 @@ import {
   Sparkles,
   X,
   Server,
-  Cpu
+  Cpu,
+  Cloud,
+  CloudCheck,
+  LogIn,
+  Share2
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
+import { AppLogo } from './AppLogo';
+import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -24,7 +32,9 @@ interface SidebarProps {
   onSelectSession: (id: string) => void;
   onNewChat: () => void;
   onDeleteSession: (id: string, e: React.MouseEvent) => void;
+  onExportSession?: (session: ChatSession, e: React.MouseEvent) => void;
   onOpenArchitecture: () => void;
+  onOpenShare?: (config?: { shareType?: 'app' | 'session' }) => void;
   onSelectMode: (mode: AssistantMode) => void;
   currentMode: AssistantMode;
 }
@@ -37,10 +47,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectSession,
   onNewChat,
   onDeleteSession,
+  onExportSession,
   onOpenArchitecture,
+  onOpenShare,
   onSelectMode,
   currentMode,
 }) => {
+  const { user, signIn } = useAuth();
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -59,8 +73,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-72'
         } shrink-0`}
       >
+        {/* Brand Banner */}
+        <div className="px-4 pt-3.5 pb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <AppLogo size={28} withGlow={true} />
+            <div>
+              <span className="text-xs font-extrabold text-stone-900 dark:text-stone-100 tracking-tight leading-none block">
+                AI Studio
+              </span>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                Gemini 3.8 Flash
+              </span>
+            </div>
+          </div>
+          <button
+            id="sidebar-close-btn"
+            onClick={onClose}
+            className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 md:hidden rounded-lg hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors"
+            title="বন্ধ করুন"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* Top Header */}
-        <div className="p-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
+        <div className="p-3 pt-1 border-b border-stone-200 dark:border-stone-800 flex items-center gap-2">
           <button
             id="sidebar-new-chat-btn"
             onClick={() => {
@@ -71,13 +108,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <Plus className="w-4 h-4" />
             <span>নতুন কথোপকথন (New Chat)</span>
-          </button>
-          <button
-            id="sidebar-close-btn"
-            onClick={onClose}
-            className="p-2 ml-2 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 md:hidden rounded-lg hover:bg-stone-200 dark:hover:bg-stone-800"
-          >
-            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -160,25 +190,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : 'text-stone-700 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/60'
                   }`}
                 >
-                  <div className="flex items-center gap-2 min-w-0 pr-6">
+                  <div className="flex items-center gap-2 min-w-0 pr-2">
                     <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-emerald-500' : 'text-stone-400'}`} />
                     <span className="truncate">{s.title || 'নতুন কথোপকথন'}</span>
+                    {s.isGeneratingTitle && (
+                      <span title="এআই শিরোনাম তৈরি করছে..." className="shrink-0 inline-flex items-center">
+                        <Sparkles className="w-3 h-3 text-emerald-500 animate-spin" />
+                      </span>
+                    )}
                   </div>
-                  <button
-                    onClick={(e) => onDeleteSession(s.id, e)}
-                    title="চ্যাট মুছে ফেলুন"
-                    className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-rose-500 transition-opacity rounded"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {s.messages.length > 0 && onExportSession && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onExportSession(s, e);
+                        }}
+                        title="চ্যাট এক্সপোর্ট করুন (PDF / JSON)"
+                        className="p-1 text-stone-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-stone-200 dark:hover:bg-stone-700 rounded transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteSession(s.id, e);
+                      }}
+                      title="চ্যাট মুছে ফেলুন"
+                      className="p-1 text-stone-400 hover:text-rose-500 hover:bg-stone-200 dark:hover:bg-stone-700 rounded transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               );
             })
           )}
         </div>
 
-        {/* Architecture Blueprint Promo Banner */}
-        <div className="p-3 border-t border-stone-200 dark:border-stone-800">
+        {/* PWA Install Button & Architecture Blueprint Promo */}
+        <div className="p-3 border-t border-stone-200 dark:border-stone-800 space-y-2">
+          <PWAInstallButton variant="sidebar" />
+
           <button
             onClick={() => {
               onOpenArchitecture();
@@ -194,6 +248,85 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Claude-এর মতো AI বানানোর বাস্তবসম্মত গাইডলাইন (পথ ১ বনাম পথ ২)
             </p>
           </button>
+        </div>
+
+        {/* Share on Social Media Platforms */}
+        <div className="px-3 pt-1 pb-2">
+          <button
+            id="sidebar-share-app-btn"
+            onClick={() => onOpenShare && onOpenShare({ shareType: 'app' })}
+            className="w-full flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 hover:bg-emerald-100/90 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-800/60 text-left transition-all group cursor-pointer shadow-2xs"
+            title="সোশ্যাল মিডিয়া ও বন্ধুদের সাথে অ্যাপটি শেয়ার করুন"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
+                <Share2 className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200 truncate">
+                  মিডিয়া প্ল্যাটফর্মে শেয়ার
+                </p>
+                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-400/90 truncate">
+                  WhatsApp, FB, X, লিঙ্ক ও QR
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded-md">
+              শেয়ার
+            </span>
+          </button>
+        </div>
+
+        {/* Firebase Cloud Sync Card */}
+        <div className="p-3 border-t border-stone-200 dark:border-stone-800">
+          {user ? (
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60">
+              <div className="flex items-center gap-2">
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt={user.displayName || 'User'}
+                    className="w-7 h-7 rounded-full object-cover border border-emerald-500 shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    {user.displayName ? user.displayName.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 truncate">
+                      ফায়ারস্টোর সিঙ্কড
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate">
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              id="sidebar-cloud-login-btn"
+              onClick={() => signIn()}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-stone-100 hover:bg-stone-200/80 dark:bg-stone-800 dark:hover:bg-stone-750 border border-stone-200 dark:border-stone-700 text-left transition-colors group"
+            >
+              <div className="flex items-center gap-2">
+                <Cloud className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <div>
+                  <p className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+                    ক্লাউড ব্যাকআপ
+                  </p>
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400">
+                    Firestore-এ ডাটা সেভ রাখুন
+                  </p>
+                </div>
+              </div>
+              <LogIn className="w-3.5 h-3.5 text-stone-400 group-hover:text-emerald-600 transition-colors" />
+            </button>
+          )}
         </div>
 
         {/* Footer specs */}

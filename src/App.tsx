@@ -13,7 +13,9 @@ import {
   Cpu,
   FileCode,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Download,
+  Share2
 } from 'lucide-react';
 import { ChatMessage, ChatSession, AssistantMode } from './types';
 import { QUICK_PROMPTS } from './data/prompts';
@@ -23,6 +25,14 @@ import { ChatMessageItem } from './components/ChatMessageItem';
 import { ChatInput } from './components/ChatInput';
 import { ArchitectureModal } from './components/ArchitectureModal';
 import { CodePreviewModal } from './components/CodePreviewModal';
+import { ExportModal } from './components/ExportModal';
+import { ShareModal } from './components/ShareModal';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { AppLogo } from './components/AppLogo';
+import { useAuth } from './context/AuthContext';
+import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
+import workspaceHeroImg from './assets/images/ai_workspace_hero_1790066671032.jpg';
+import apiArchitectureImg from './assets/images/api_architecture_graphic_1790066692425.jpg';
 
 const STORAGE_KEY = 'ai_studio_chat_sessions_v1';
 const THEME_KEY = 'ai_studio_theme_mode';
@@ -74,11 +84,43 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [architectureModalOpen, setArchitectureModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [sessionToExport, setSessionToExport] = useState<ChatSession | null>(null);
+  const [shareModalConfig, setShareModalConfig] = useState<{
+    isOpen: boolean;
+    title?: string;
+    text?: string;
+    url?: string;
+    sessionId?: string;
+    shareType?: 'session' | 'app' | 'message';
+  }>({
+    isOpen: false,
+  });
+
+  const handleOpenShareModal = (config?: {
+    title?: string;
+    text?: string;
+    url?: string;
+    sessionId?: string;
+    shareType?: 'session' | 'app' | 'message';
+  }) => {
+    setShareModalConfig({
+      isOpen: true,
+      title: config?.title || activeSession?.title || 'AI Assistant & Coding Studio',
+      text: config?.text,
+      url: config?.url,
+      sessionId: config?.sessionId || activeSession?.id,
+      shareType: config?.shareType || 'session',
+    });
+  };
+
   const [previewModal, setPreviewModal] = useState<{ isOpen: boolean; code: string; language: string }>({
     isOpen: false,
     code: '',
     language: 'html',
   });
+
+  const { user, setIsSyncing } = useAuth();
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -88,10 +130,89 @@ export default function App() {
   const mode = activeSession?.mode || 'general';
   const enableSearch = activeSession?.enableSearch ?? false;
 
-  // Persist sessions
+  // Persist sessions locally
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
   }, [sessions]);
+
+  // Sync with Firestore when user logs in
+  useEffect(() => {
+    if (!user) return;
+    let isCancelled = false;
+
+    const syncFromFirestore = async () => {
+      try {
+        setIsSyncing(true);
+        const cloudSessions = await loadSessionsFromCloud(user.uid);
+        if (isCancelled) return;
+
+        if (cloudSessions && cloudSessions.length > 0) {
+          // Merge cloud sessions with local sessions by ID, keeping newest
+          setSessions((prevLocal) => {
+            const map = new Map<string, ChatSession>();
+            prevLocal.forEach((s) => map.set(s.id, s));
+            cloudSessions.forEach((cs) => {
+              const existing = map.get(cs.id);
+              if (!existing || cs.updatedAt >= existing.updatedAt) {
+                map.set(cs.id, cs);
+              }
+            });
+            return Array.from(map.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+          });
+        } else {
+          // If cloud has no sessions, upload current local non-empty sessions
+          for (const s of sessions) {
+            if (s.messages.length > 0) {
+              await saveSessionToCloud(user.uid, s);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to sync sessions with Firestore:', err);
+      } finally {
+        if (!isCancelled) setIsSyncing(false);
+      }
+    };
+
+    syncFromFirestore();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.uid]);
+
+  // Auto-sync active session to Firestore when it changes (debounced)
+  useEffect(() => {
+    if (!user || !activeSession || activeSession.messages.length === 0) return;
+
+    const timer = setTimeout(() => {
+      saveSessionToCloud(user.uid, activeSession).catch((err) => {
+        console.error('Auto-sync to Firestore failed:', err);
+      });
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [user, activeSession?.updatedAt, activeSession?.messages.length]);
+
+  const handleSyncAll = async () => {
+    if (!user) return;
+    try {
+      setIsSyncing(true);
+      for (const s of sessions) {
+        if (s.messages.length > 0) {
+          await saveSessionToCloud(user.uid, s);
+        }
+      }
+      const cloudSessions = await loadSessionsFromCloud(user.uid);
+      if (cloudSessions && cloudSessions.length > 0) {
+        setSessions(cloudSessions);
+      }
+    } catch (e) {
+      console.error('Manual sync error', e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Scroll to bottom on message update
   useEffect(() => {
@@ -146,6 +267,9 @@ export default function App() {
     if (activeSessionId === id) {
       setActiveSessionId(remaining[0].id);
     }
+    if (user) {
+      deleteSessionFromCloud(user.uid, id).catch((err) => console.error('Cloud delete error:', err));
+    }
   };
 
   const handleClearChat = () => {
@@ -158,29 +282,11 @@ export default function App() {
     }
   };
 
-  const handleExportChat = () => {
-    if (!activeSession || activeSession.messages.length === 0) return;
-    let content = `# ${activeSession.title}\nDate: ${new Date(activeSession.createdAt).toLocaleString()}\nMode: ${activeSession.mode}\n\n---\n\n`;
-    activeSession.messages.forEach((msg) => {
-      const sender = msg.role === 'user' ? '👤 User' : '🤖 AI Assistant';
-      content += `### ${sender} (${new Date(msg.timestamp).toLocaleTimeString()})\n\n${msg.text}\n\n`;
-      if (msg.groundingChunks && msg.groundingChunks.length > 0) {
-        content += `**Grounding Sources:**\n`;
-        msg.groundingChunks.forEach((c) => {
-          if (c.web) content += `- [${c.web.title || c.web.uri}](${c.web.uri})\n`;
-        });
-        content += '\n';
-      }
-      content += '---\n\n';
-    });
-
-    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${activeSession.title.slice(0, 30).replace(/\s+/g, '_')}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportChat = (targetSession?: ChatSession) => {
+    const session = targetSession || activeSession;
+    if (!session || session.messages.length === 0) return;
+    setSessionToExport(session);
+    setExportModalOpen(true);
   };
 
   const handleStopGenerating = () => {
@@ -197,10 +303,72 @@ export default function App() {
     }));
   };
 
+  /**
+   * Helper function that triggers after the first user-assistant turn
+   * to automatically generate a descriptive, concise title for the session
+   * based on the conversation context using the AI.
+   */
+  const generateSessionTitle = async (
+    targetSessionId: string,
+    userText: string,
+    assistantText: string,
+    sessionMode: AssistantMode
+  ) => {
+    if (!userText || !assistantText || !targetSessionId) return;
+
+    // Indicate that the title is being generated by AI
+    setSessions((prev) =>
+      prev.map((s) => (s.id === targetSessionId ? { ...s, isGeneratingTitle: true } : s))
+    );
+
+    try {
+      const response = await fetch('/api/session/title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userMessage: userText,
+          assistantMessage: assistantText.slice(0, 1000),
+          mode: sessionMode,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data?.title && typeof data.title === 'string' && data.title.trim()) {
+        const conciseTitle = data.title.trim();
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id === targetSessionId) {
+              return {
+                ...s,
+                title: conciseTitle,
+                isGeneratingTitle: false,
+                updatedAt: Date.now(),
+              };
+            }
+            return s;
+          })
+        );
+        return;
+      }
+    } catch (err) {
+      console.warn('Auto-title generation failed, keeping fallback title:', err);
+    } finally {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === targetSessionId ? { ...s, isGeneratingTitle: false } : s))
+      );
+    }
+  };
+
   const executeChatStream = async (
     updatedMessages: ChatMessage[],
     promptText: string,
-    assistantMsgId: string
+    assistantMsgId: string,
+    isFirstTurn = false,
+    targetSessionId?: string
   ) => {
     setIsGenerating(true);
 
@@ -221,8 +389,22 @@ export default function App() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error ${response.status}`);
+        let errorMsg = `HTTP ত্রুটি ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData?.error) {
+            errorMsg = errorData.error;
+          }
+        } catch {
+          if (response.status === 404) {
+            errorMsg = 'সার্ভার এন্ডপয়েন্ট বা এআই মডেল পাওয়া যায়নি (HTTP 404)। সার্ভার সংযোগ পুনরায় যাচাই করুন অথবা কয়েক সেকেন্ড পর আবার চেষ্টা করুন।';
+          } else if (response.status === 502 || response.status === 503) {
+            errorMsg = 'সার্ভার বা গুগল এআই এই মুহূর্তে সাময়িকভাবে ব্যস্ত (HTTP ' + response.status + ')। অনুগ্রহ করে কয়েক সেকেন্ড পর আবার চেষ্টা করুন।';
+          } else if (response.status === 429) {
+            errorMsg = 'এআই কোটা সীমা (Rate Limit 429) শেষ হয়েছে। অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করে পুনরায় চেষ্টা করুন।';
+          }
+        }
+        throw new Error(errorMsg);
       }
 
       if (!response.body) {
@@ -293,6 +475,7 @@ export default function App() {
       }
 
       if (!hasReceivedError) {
+        const finalAssistantText = accumulatedText || 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি। পুনরায় চেষ্টা করুন।';
         // Finish streaming
         updateActiveSession((s) => ({
           ...s,
@@ -300,7 +483,7 @@ export default function App() {
             m.id === assistantMsgId
               ? {
                   ...m,
-                  text: accumulatedText || 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি। পুনরায় চেষ্টা করুন।',
+                  text: finalAssistantText,
                   isStreaming: false,
                   groundingChunks: accumulatedGrounding,
                   searchQueries,
@@ -308,6 +491,11 @@ export default function App() {
               : m
           ),
         }));
+
+        // Trigger helper function after first user-assistant turn to automatically generate a descriptive AI title
+        if (isFirstTurn && accumulatedText.trim() && targetSessionId) {
+          generateSessionTitle(targetSessionId, promptText, finalAssistantText, mode);
+        }
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -357,9 +545,12 @@ export default function App() {
       mode,
     };
 
-    // Update session title if first user message
-    const isFirstMessage = activeSession.messages.length === 0;
-    const newTitle = isFirstMessage
+    // Check if this will be the first user-assistant turn
+    const isFirstTurn = activeSession.messages.length === 0;
+    const currentSessionId = activeSession.id;
+
+    // Temporary title while streaming the first message
+    const newTitle = isFirstTurn
       ? textToSend.length > 28
         ? textToSend.slice(0, 28) + '...'
         : textToSend
@@ -373,7 +564,7 @@ export default function App() {
       messages: [...updatedMessages, initialAssistantMessage],
     }));
 
-    await executeChatStream(updatedMessages, textToSend, assistantMsgId);
+    await executeChatStream(updatedMessages, textToSend, assistantMsgId, isFirstTurn, currentSessionId);
   };
 
   const handleEditAndResend = async (messageId: string, newText: string) => {
@@ -409,8 +600,11 @@ export default function App() {
       mode,
     };
 
+    const isFirstTurn = msgIndex === 0;
+    const currentSessionId = activeSession.id;
+
     // Update title if it was the first message
-    const newTitle = msgIndex === 0
+    const newTitle = isFirstTurn
       ? trimmed.length > 28
         ? trimmed.slice(0, 28) + '...'
         : trimmed
@@ -422,7 +616,7 @@ export default function App() {
       messages: [...updatedMessages, initialAssistantMessage],
     }));
 
-    await executeChatStream(updatedMessages, trimmed, assistantMsgId);
+    await executeChatStream(updatedMessages, trimmed, assistantMsgId, isFirstTurn, currentSessionId);
   };
 
   const handleRetryLastMessage = () => {
@@ -444,7 +638,9 @@ export default function App() {
         onSelectSession={setActiveSessionId}
         onNewChat={handleNewChat}
         onDeleteSession={handleDeleteSession}
+        onExportSession={(s) => handleExportChat(s)}
         onOpenArchitecture={() => setArchitectureModalOpen(true)}
+        onOpenShare={handleOpenShareModal}
         onSelectMode={setMode}
         currentMode={mode}
       />
@@ -457,11 +653,16 @@ export default function App() {
           onNewChat={handleNewChat}
           onClearChat={handleClearChat}
           onExportChat={handleExportChat}
+          onOpenShareModal={handleOpenShareModal}
+          onSyncAll={handleSyncAll}
           mode={mode}
           enableSearch={enableSearch}
           hasMessages={activeSession?.messages.length > 0}
           darkMode={darkMode}
           setDarkMode={setDarkMode}
+          activeSessionTitle={activeSession?.title}
+          isGeneratingTitle={activeSession?.isGeneratingTitle}
+          activeSessionId={activeSession?.id}
         />
 
         {/* Scrollable messages container */}
@@ -469,8 +670,11 @@ export default function App() {
           {activeSession.messages.length === 0 ? (
             <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12 space-y-8">
               {/* Hero Banner */}
-              <div className="text-center space-y-3">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+              <div className="text-center space-y-4">
+                <div className="flex justify-center pb-1">
+                  <AppLogo size={76} withGlow={true} />
+                </div>
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Claude ও Gemini-সক্ষম বাংলা ও ইংরেজি স্মার্ট অ্যাসিস্ট্যান্ট</span>
                 </div>
@@ -480,6 +684,61 @@ export default function App() {
                 <p className="text-sm text-stone-600 dark:text-stone-400 max-w-2xl mx-auto leading-relaxed">
                   কোডিং ও সফটওয়্যার ডেভেলপমেন্ট, লেখালেখি, মাইক্রোফোনে বাংলা/ইংরেজি ভয়েস কমান্ড এবং Google Search গ্রাউন্ডিং সহ রিয়েল-টাইম গবেষণা—যেকোনো প্রশ্ন লিখুন বা মুখে বলুন।
                 </p>
+
+                {/* Hero Quick Share & Action Buttons */}
+                <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                  <button
+                    id="hero-share-app-btn"
+                    onClick={() =>
+                      handleOpenShareModal({
+                        title: 'AI Assistant & Coding Studio',
+                        text: 'বাংলা ও ইংরেজি ভাষার স্মার্ট এআই কোডিং ও চ্যাট সহকারী — কোডিং, লেখালেখি, ক্লাউড স্টোরেজ ও সার্চ সুবিধা। এখনই পরখ করুন!',
+                        shareType: 'app',
+                      })
+                    }
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-semibold text-xs shadow-md transition-all cursor-pointer group"
+                    title="বিভিন্ন মিডিয়া প্ল্যাটফর্মে অ্যাপটি শেয়ার করুন"
+                  >
+                    <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    <span>অ্যাপটি সোশ্যাল মিডিয়ায় শেয়ার করুন</span>
+                  </button>
+
+                  <button
+                    id="hero-architecture-btn"
+                    onClick={() => setArchitectureModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-850 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 font-semibold text-xs border border-stone-200 dark:border-stone-750 transition-colors"
+                  >
+                    <Layers className="w-4 h-4 text-amber-500" />
+                    <span>AI আর্কিটেকচার গাইড</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Visual Studio Showcase Banner */}
+              <div className="relative overflow-hidden rounded-2xl border border-stone-200/80 dark:border-stone-800 shadow-md bg-stone-950 group">
+                <img
+                  src={workspaceHeroImg}
+                  alt="AI Coding Studio Workspace"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-44 sm:h-56 object-cover object-center opacity-85 group-hover:scale-102 group-hover:opacity-95 transition-all duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/60 to-transparent flex flex-col justify-end p-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-stone-950 flex items-center gap-1 shadow-xs">
+                      <Sparkles className="w-3 h-3" />
+                      AI Studio Active
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-400">
+                      কোডিং • ক্লাউড সিঙ্ক • ফুল-স্ট্যাক
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                    আপনার বুদ্ধিমান প্রোগ্রামিং ও ক্রিয়েটিভ অ্যাসিস্ট্যান্ট
+                  </h3>
+                  <p className="text-xs text-stone-300 max-w-xl line-clamp-1 mt-0.5">
+                    রিয়েল-টাইম Gemini 3.8 Flash, ফায়ারস্টোর ক্লাউড সিঙ্ক এবং ইন্টেলিজেন্ট কোড জেনারেটর
+                  </p>
+                </div>
               </div>
 
               {/* Architecture Blueprint Feature Card */}
@@ -487,13 +746,13 @@ export default function App() {
                 onClick={() => setArchitectureModalOpen(true)}
                 className="cursor-pointer group p-5 rounded-2xl bg-gradient-to-r from-stone-900 via-stone-800 to-emerald-950 text-white shadow-lg border border-stone-700/80 hover:border-emerald-500/60 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-amber-400 text-stone-950 font-bold">
                       আর্কিটেকচার গাইড
                     </span>
-                    <h3 className="text-base font-bold flex items-center gap-1.5 group-hover:text-emerald-300 transition-colors">
-                      <Layers className="w-4 h-4 text-amber-400" />
+                    <h3 className="text-base font-bold flex items-center gap-1.5 group-hover:text-emerald-300 transition-colors truncate">
+                      <Layers className="w-4 h-4 text-amber-400 shrink-0" />
                       Claude বা ChatGPT-এর মতো নিজস্ব AI অ্যাপ কীভাবে বানাবেন?
                     </h3>
                   </div>
@@ -501,9 +760,17 @@ export default function App() {
                     কোটি টাকার GPU ছাড়াই বর্তমান LLM API (Google Gemini, Claude), Express ব্যাকএন্ড, React ফ্রন্টএন্ড এবং Vector DB/RAG দিয়ে কয়েক সপ্তাহেই কাজ চালানোর মতো ফুল-ফাংশনাল AI প্রোডাক্ট লঞ্চ করার বিস্তারিত রোডম্যাপ।
                   </p>
                 </div>
-                <div className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold backdrop-blur-xs transition-colors">
-                  <span>ব্লুপ্রিন্ট দেখুন</span>
-                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                <div className="shrink-0 flex items-center gap-3">
+                  <img
+                    src={apiArchitectureImg}
+                    alt="AI Cloud Architecture Preview"
+                    referrerPolicy="no-referrer"
+                    className="w-20 h-14 sm:w-28 sm:h-16 rounded-xl object-cover border border-emerald-500/40 shadow-xs hidden sm:block"
+                  />
+                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold backdrop-blur-xs transition-colors shrink-0">
+                    <span>ব্লুপ্রিন্ট দেখুন</span>
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                  </div>
                 </div>
               </div>
 
@@ -580,21 +847,71 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="divide-y divide-stone-100 dark:divide-stone-800/40">
-              {activeSession.messages.map((message) => (
-                <ChatMessageItem
-                  key={message.id}
-                  message={message}
-                  onPreviewCode={(code, language) =>
-                    setPreviewModal({ isOpen: true, code, language })
-                  }
-                  onSelectPrompt={(p) => handleSendMessage(p)}
-                  onRetry={handleRetryLastMessage}
-                  onEditMessage={handleEditAndResend}
-                  isGenerating={isGenerating}
-                />
-              ))}
-              <div ref={messagesEndRef} className="h-4" />
+            <div>
+              {/* Session Meta & Quick Export Sub-header */}
+              <div className="sticky top-0 z-10 px-4 py-2.5 bg-stone-50/90 dark:bg-stone-900/90 backdrop-blur-xs border-b border-stone-200/70 dark:border-stone-800/70 flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-bold text-stone-800 dark:text-stone-200 truncate">
+                    {activeSession.title}
+                  </span>
+                  <span className="hidden sm:inline text-[10px] font-medium px-2 py-0.5 rounded-full bg-stone-200/70 dark:bg-stone-800 text-stone-600 dark:text-stone-400 shrink-0">
+                    {activeSession.messages.length}টি বার্তা
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    id="chat-subbar-share-btn"
+                    onClick={() =>
+                      handleOpenShareModal({
+                        title: activeSession.title,
+                        text: `${activeSession.title} - AI Assistant & Coding Studio চ্যাট সেশন`,
+                        sessionId: activeSession.id,
+                        shareType: 'session',
+                      })
+                    }
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-stone-850 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-750 transition-colors shrink-0 shadow-2xs cursor-pointer"
+                    title="এই সেশনটি সোশ্যাল মিডিয়ায় শেয়ার করুন"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>শেয়ার করুন</span>
+                  </button>
+
+                  <button
+                    id="chat-subbar-export-btn"
+                    onClick={() => handleExportChat(activeSession)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 transition-colors shrink-0 shadow-2xs cursor-pointer"
+                    title="এই সেশনটি PDF বা JSON ফাইলে সংরক্ষণ করুন"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>PDF / JSON এক্সপোর্ট</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="divide-y divide-stone-100 dark:divide-stone-800/40">
+                {activeSession.messages.map((message) => (
+                  <ChatMessageItem
+                    key={message.id}
+                    message={message}
+                    onPreviewCode={(code, language) =>
+                      setPreviewModal({ isOpen: true, code, language })
+                    }
+                    onSelectPrompt={(p) => handleSendMessage(p)}
+                    onRetry={handleRetryLastMessage}
+                    onEditMessage={handleEditAndResend}
+                    onShareMessage={(text) =>
+                      handleOpenShareModal({
+                        title: 'AI সহকারী রেসপন্স',
+                        text: text.slice(0, 200) + '...',
+                        sessionId: activeSession.id,
+                        shareType: 'message',
+                      })
+                    }
+                    isGenerating={isGenerating}
+                  />
+                ))}
+                <div ref={messagesEndRef} className="h-4" />
+              </div>
             </div>
           )}
         </div>
@@ -627,6 +944,30 @@ export default function App() {
         code={previewModal.code}
         language={previewModal.language}
       />
+
+      {/* Export Modal (PDF, JSON, Markdown) */}
+      <ExportModal
+        isOpen={exportModalOpen}
+        onClose={() => {
+          setExportModalOpen(false);
+          setSessionToExport(null);
+        }}
+        session={sessionToExport || activeSession}
+      />
+
+      {/* Share Modal for Multiple Media Platforms */}
+      <ShareModal
+        isOpen={shareModalConfig.isOpen}
+        onClose={() => setShareModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        title={shareModalConfig.title}
+        text={shareModalConfig.text}
+        url={shareModalConfig.url}
+        sessionId={shareModalConfig.sessionId}
+        shareType={shareModalConfig.shareType}
+      />
+
+      {/* PWA Offline Indicator */}
+      <OfflineIndicator />
     </div>
   );
 }

@@ -11,6 +11,9 @@ import {
   Download, 
   Volume2, 
   VolumeX, 
+  Pause,
+  Square,
+  Radio,
   AlertCircle,
   FileCode,
   Sparkles,
@@ -21,7 +24,8 @@ import {
   Gauge,
   Music,
   Youtube,
-  Disc3
+  Disc3,
+  Share2
 } from 'lucide-react';
 import { ChatMessage, GroundingChunk } from '../types';
 
@@ -31,6 +35,7 @@ interface ChatMessageItemProps {
   onSelectPrompt?: (prompt: string) => void;
   onRetry?: () => void;
   onEditMessage?: (messageId: string, newText: string) => void;
+  onShareMessage?: (text: string) => void;
   isGenerating?: boolean;
 }
 
@@ -113,15 +118,25 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   onSelectPrompt,
   onRetry,
   onEditMessage,
+  onShareMessage,
   isGenerating = false,
 }) => {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [speechSpeed, setSpeechSpeed] = useState<number>(1);
+  const [activeChunk, setActiveChunk] = useState<number>(0);
+  const [totalChunks, setTotalChunks] = useState<number>(0);
+  const [detectedVoiceLabel, setDetectedVoiceLabel] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const chunksRef = useRef<string[]>([]);
+  const currentChunkIndexRef = useRef<number>(0);
+  const isCancelledRef = useRef<boolean>(false);
+  const keepAliveIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     setEditText(message.text);
@@ -154,77 +169,225 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       .replace(/```[\s\S]*?```/g, ' কোড ব্লক বাদ দেওয়া হয়েছে। ')
       .replace(/`([^`]+)`/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
       .replace(/[*_~#]/g, '')
       .replace(/>\s+/g, '')
+      .replace(/\|[^\n]+\|/g, ' ')
       .replace(/\n+/g, ' ')
       .trim();
   };
 
-  useEffect(() => {
-    return () => {
-      // Cancel speech synthesis if component unmounts
-      if ('speechSynthesis' in window && isSpeaking) {
-        window.speechSynthesis.cancel();
+  // Split long text into natural sentence-sized chunks to prevent Web Speech API timeouts
+  const splitTextIntoSpeechChunks = (text: string): string[] => {
+    // Split by Bengali dāri (।), exclamation (!), question (?), period (.), or newlines
+    const rawSegments = text.match(/[^।?!.\n\r]+[।?!.\n\r]*/g) || [text];
+    const chunks: string[] = [];
+    let current = '';
+
+    for (const segment of rawSegments) {
+      const trimmed = segment.trim();
+      if (!trimmed) continue;
+      if (current.length + trimmed.length <= 160) {
+        current = current ? `${current} ${trimmed}` : trimmed;
+      } else {
+        if (current) chunks.push(current);
+        if (trimmed.length > 160) {
+          // Break oversized sentences by commas or word boundaries
+          const words = trimmed.split(/([,\s]+)/);
+          let sub = '';
+          for (const w of words) {
+            if (sub.length + w.length <= 160) {
+              sub += w;
+            } else {
+              if (sub.trim()) chunks.push(sub.trim());
+              sub = w;
+            }
+          }
+          current = sub.trim();
+        } else {
+          current = trimmed;
+        }
       }
-    };
-  }, [isSpeaking]);
-
-  const handleSpeak = (targetSpeed?: number) => {
-    if (!('speechSynthesis' in window)) {
-      alert('আপনার ব্রাউজারে টেক্সট-টু-স্পিচ (TTS) সমর্থিত নয়।');
-      return;
     }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks.length > 0 ? chunks : [text];
+  };
 
-    const rateToUse = targetSpeed !== undefined ? targetSpeed : speechSpeed;
+  const stopKeepAlive = () => {
+    if (keepAliveIntervalRef.current) {
+      clearInterval(keepAliveIntervalRef.current);
+      keepAliveIntervalRef.current = null;
+    }
+  };
 
-    if (isSpeaking && targetSpeed === undefined) {
+  const startKeepAlive = () => {
+    stopKeepAlive();
+    // In Chromium, SpeechSynthesis pauses unexpectedly on long playback.
+    // Poking pause and resume every 10 seconds keeps the audio engine active.
+    keepAliveIntervalRef.current = setInterval(() => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        }
+      }
+    }, 10000);
+  };
+
+  const handleStopSpeaking = () => {
+    isCancelledRef.current = true;
+    stopKeepAlive();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      setIsSpeaking(false);
+    }
+    setIsSpeaking(false);
+    setIsPaused(false);
+    setActiveChunk(0);
+    setTotalChunks(0);
+  };
+
+  const playChunkAt = (index: number, speed: number) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (isCancelledRef.current || index >= chunksRef.current.length) {
+      handleStopSpeaking();
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const spokenText = cleanTextForSpeech(message.text) || message.text;
-    const utterance = new SpeechSynthesisUtterance(spokenText);
-    
-    // Choose appropriate voice (Bengali priority, or Hindi/English fallback)
-    const voices = window.speechSynthesis.getVoices();
-    const bnVoice = voices.find(
-      (v) => v.lang.startsWith('bn') || v.name.toLowerCase().includes('bangla') || v.name.toLowerCase().includes('bengali')
-    );
-    if (bnVoice) {
-      utterance.voice = bnVoice;
-      utterance.lang = bnVoice.lang;
-    } else {
-      // Auto-detect if English dominant
-      const isEnglish = /^[\x00-\x7F\s.,!?-]+$/.test(spokenText.slice(0, 50));
-      if (isEnglish) {
-        const enVoice = voices.find((v) => v.lang.startsWith('en'));
-        if (enVoice) utterance.voice = enVoice;
-      }
-    }
+    currentChunkIndexRef.current = index;
+    setActiveChunk(index);
 
-    utterance.rate = rateToUse;
+    const chunkText = chunksRef.current[index];
+    const utterance = new SpeechSynthesisUtterance(chunkText);
+    utterance.rate = speed;
     utterance.pitch = 1.0;
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = (e) => {
-      console.warn('Speech synthesis error:', e);
-      setIsSpeaking(false);
+    // Detect language and match voice
+    const hasBengali = /[\u0980-\u09FF]/.test(chunkText);
+    const availableVoices = window.speechSynthesis.getVoices();
+
+    if (hasBengali) {
+      utterance.lang = 'bn-BD';
+      const bnVoice = availableVoices.find(
+        (v) =>
+          v.lang.toLowerCase().startsWith('bn') ||
+          v.name.toLowerCase().includes('bangla') ||
+          v.name.toLowerCase().includes('bengali')
+      );
+      if (bnVoice) {
+        utterance.voice = bnVoice;
+        setDetectedVoiceLabel(bnVoice.name.replace(/Google|Microsoft/gi, '').trim() || 'বাংলা কণ্ঠ');
+      } else {
+        setDetectedVoiceLabel('বাংলা কণ্ঠ');
+      }
+    } else {
+      utterance.lang = 'en-US';
+      const enVoice = availableVoices.find((v) => v.lang.toLowerCase().startsWith('en'));
+      if (enVoice) {
+        utterance.voice = enVoice;
+        setDetectedVoiceLabel(enVoice.name.replace(/Google|Microsoft/gi, '').trim() || 'English');
+      } else {
+        setDetectedVoiceLabel('English');
+      }
+    }
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      setIsPaused(false);
     };
 
-    setIsSpeaking(true);
+    utterance.onend = () => {
+      if (isCancelledRef.current) return;
+      const nextIndex = index + 1;
+      if (nextIndex < chunksRef.current.length) {
+        playChunkAt(nextIndex, speed);
+      } else {
+        handleStopSpeaking();
+      }
+    };
+
+    utterance.onerror = (e) => {
+      if (e.error !== 'interrupted' && e.error !== 'canceled') {
+        console.warn('Speech synthesis error event:', e);
+      }
+      if (isCancelledRef.current) return;
+      handleStopSpeaking();
+    };
+
     window.speechSynthesis.speak(utterance);
+  };
+
+  const handleStartSpeaking = (targetSpeed?: number) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      alert('আপনার ব্রাউজারে Web Speech API (টেক্সট-টু-স্পিচ) সমর্থিত নয়। অনুগ্রহ করে Chrome বা Edge ব্রাউজার ব্যবহার করুন।');
+      return;
+    }
+
+    const rate = targetSpeed !== undefined ? targetSpeed : speechSpeed;
+
+    // If currently speaking: toggle pause/resume
+    if (isSpeaking) {
+      if (isPaused) {
+        handleResumeSpeaking();
+      } else {
+        handlePauseSpeaking();
+      }
+      return;
+    }
+
+    // Cancel any previous speech
+    window.speechSynthesis.cancel();
+    isCancelledRef.current = false;
+
+    const cleaned = cleanTextForSpeech(message.text) || message.text;
+    const chunks = splitTextIntoSpeechChunks(cleaned);
+    chunksRef.current = chunks;
+    setTotalChunks(chunks.length);
+    setActiveChunk(0);
+
+    startKeepAlive();
+    playChunkAt(0, rate);
+  };
+
+  const handlePauseSpeaking = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && isSpeaking) {
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+    }
+  };
+
+  const handleResumeSpeaking = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+        setIsPaused(false);
+      } else {
+        isCancelledRef.current = false;
+        playChunkAt(currentChunkIndexRef.current, speechSpeed);
+      }
+    }
   };
 
   const handleSpeedChange = (speed: number) => {
     setSpeechSpeed(speed);
     if (isSpeaking) {
-      // Restart speaking seamlessly with new speed
-      handleSpeak(speed);
+      // Re-trigger from current chunk with updated speed
+      isCancelledRef.current = true;
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setTimeout(() => {
+        isCancelledRef.current = false;
+        playChunkAt(currentChunkIndexRef.current, speed);
+      }, 60);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      handleStopSpeaking();
+    };
+  }, []);
 
   const downloadAsFile = (content: string, filename: string) => {
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -618,61 +781,126 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               </button>
 
               {/* Text to Speech Button & Speed Selector */}
-              <div className="flex items-center gap-1 rounded-lg p-0.5 bg-stone-100/80 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-750">
-                <button
-                  id={`ai-speak-btn-${message.id}`}
-                  onClick={() => handleSpeak()}
-                  title={isSpeaking ? 'ভয়েস পড়া থামান' : 'এআই-এর উত্তর পড়ে শোনান (Text-to-Speech)'}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                    isSpeaking
-                      ? 'bg-amber-500 text-white shadow-xs font-semibold'
-                      : 'hover:bg-white dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
-                  }`}
-                >
-                  {isSpeaking ? (
-                    <>
-                      <VolumeX className="w-3.5 h-3.5 text-white" />
-                      <span>থামান</span>
-                      {/* Playing wave animation indicator */}
-                      <span className="flex items-center gap-0.5 h-3 ml-0.5">
-                        <span className="w-0.5 h-3 bg-white rounded-full animate-bounce [animation-delay:-0.3s]" />
-                        <span className="w-0.5 h-2 bg-white rounded-full animate-bounce [animation-delay:-0.15s]" />
-                        <span className="w-0.5 h-3 bg-white rounded-full animate-bounce" />
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <Volume2 className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
-                      <span>পড়ে শোনান</span>
-                    </>
-                  )}
-                </button>
+              {!isSpeaking ? (
+                <div className="flex items-center gap-1 rounded-lg p-0.5 bg-stone-100/80 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-750">
+                  <button
+                    id={`ai-speak-btn-${message.id}`}
+                    onClick={() => handleStartSpeaking()}
+                    title="এআই-এর উত্তর পড়ে শোনান (Web Speech API Text-to-Speech)"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-stone-700 dark:text-stone-300 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-white dark:hover:bg-stone-700 transition-all cursor-pointer"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>পড়ে শোনান</span>
+                  </button>
 
-                {/* Playback Speed Selector (0.5x, 1x, 1.5x, 2x) */}
-                <div 
-                  className="flex items-center gap-0.5 pl-1 pr-0.5 border-l border-stone-200 dark:border-stone-700" 
-                  title="প্লেব্যাক স্পিড / পড়ার গতি নির্বাচন করুন"
-                >
-                  {[0.5, 1, 1.5, 2].map((speed) => {
-                    const isSelected = speechSpeed === speed;
-                    return (
-                      <button
-                        key={speed}
-                        id={`ai-speed-${speed}x-${message.id}`}
-                        onClick={() => handleSpeedChange(speed)}
-                        title={`গতি ${speed}x সেট করুন`}
-                        className={`px-1.5 py-0.5 text-[11px] rounded transition-all font-mono cursor-pointer ${
-                          isSelected
-                            ? 'bg-white dark:bg-stone-900 text-emerald-600 dark:text-emerald-400 font-bold shadow-2xs border border-stone-200/80 dark:border-stone-700'
-                            : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 hover:bg-stone-200/60 dark:hover:bg-stone-700/50'
-                        }`}
-                      >
-                        {speed}x
-                      </button>
-                    );
-                  })}
+                  {/* Playback Speed Selector (0.75x, 1x, 1.25x, 1.5x, 2x) */}
+                  <div 
+                    className="flex items-center gap-0.5 pl-1 pr-0.5 border-l border-stone-200 dark:border-stone-700" 
+                    title="প্লেব্যাক স্পিড / পড়ার গতি নির্বাচন করুন"
+                  >
+                    {[0.75, 1, 1.25, 1.5, 2].map((speed) => {
+                      const isSelected = speechSpeed === speed;
+                      return (
+                        <button
+                          key={speed}
+                          id={`ai-speed-${speed}x-${message.id}`}
+                          onClick={() => handleSpeedChange(speed)}
+                          title={`গতি ${speed}x সেট করুন`}
+                          className={`px-1.5 py-0.5 text-[11px] rounded transition-all font-mono cursor-pointer ${
+                            isSelected
+                              ? 'bg-white dark:bg-stone-900 text-emerald-600 dark:text-emerald-400 font-bold shadow-2xs border border-stone-200/80 dark:border-stone-700'
+                              : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 hover:bg-stone-200/60 dark:hover:bg-stone-700/50'
+                          }`}
+                        >
+                          {speed}x
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* Active Audio Playback Bar */
+                <div className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300/80 dark:border-emerald-700/70 text-xs shadow-xs animate-in fade-in duration-200 flex-wrap">
+                  {/* Visual Audio Wave & Status */}
+                  <div className="flex items-center gap-2 pr-1.5 border-r border-emerald-200 dark:border-emerald-800">
+                    <span className="flex items-center gap-0.5 h-3.5" title={isPaused ? 'পজ রয়েছে' : 'ভয়েস চলছে'}>
+                      <span className={`w-0.5 rounded-full bg-emerald-600 dark:bg-emerald-400 ${!isPaused ? 'h-3.5 animate-bounce [animation-delay:-0.3s]' : 'h-1.5'}`} />
+                      <span className={`w-0.5 rounded-full bg-emerald-600 dark:bg-emerald-400 ${!isPaused ? 'h-2 animate-bounce [animation-delay:-0.15s]' : 'h-2.5'}`} />
+                      <span className={`w-0.5 rounded-full bg-emerald-600 dark:bg-emerald-400 ${!isPaused ? 'h-3.5 animate-bounce' : 'h-1.5'}`} />
+                    </span>
+                    <span className="font-semibold text-emerald-800 dark:text-emerald-200">
+                      {isPaused ? 'পজ করা হয়েছে' : 'পড়ে শোনানো হচ্ছে...'}
+                    </span>
+                    {totalChunks > 1 && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                        {activeChunk + 1}/{totalChunks}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Pause / Resume Button */}
+                  <button
+                    id={`ai-pause-resume-btn-${message.id}`}
+                    onClick={isPaused ? handleResumeSpeaking : handlePauseSpeaking}
+                    title={isPaused ? 'চালিয়ে যান (Resume)' : 'পজ করুন (Pause)'}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-2xs"
+                  >
+                    {isPaused ? (
+                      <>
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>চালিয়ে যান</span>
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="w-3 h-3" />
+                        <span>পজ</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Stop Button */}
+                  <button
+                    id={`ai-stop-btn-${message.id}`}
+                    onClick={handleStopSpeaking}
+                    title="ভয়েস পড়া থামান (Stop)"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-stone-200/80 hover:bg-rose-100 dark:bg-stone-800 dark:hover:bg-rose-950/60 text-stone-700 hover:text-rose-700 dark:text-stone-300 dark:hover:text-rose-300 transition-colors cursor-pointer"
+                  >
+                    <Square className="w-3 h-3 fill-current" />
+                    <span>থামান</span>
+                  </button>
+
+                  {/* Playback Speed selector while speaking */}
+                  <div className="flex items-center gap-0.5 pl-1.5 border-l border-emerald-200 dark:border-emerald-800">
+                    {[0.75, 1, 1.25, 1.5, 2].map((speed) => {
+                      const isSelected = speechSpeed === speed;
+                      return (
+                        <button
+                          key={speed}
+                          id={`ai-active-speed-${speed}x-${message.id}`}
+                          onClick={() => handleSpeedChange(speed)}
+                          title={`গতি ${speed}x সেট করুন`}
+                          className={`px-1.5 py-0.5 text-[11px] rounded transition-all font-mono cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-700 text-white font-bold shadow-2xs'
+                              : 'text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200/60 dark:hover:bg-emerald-900/40'
+                          }`}
+                        >
+                          {speed}x
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {detectedVoiceLabel && (
+                    <span 
+                      className="hidden sm:inline text-[10px] text-emerald-700/80 dark:text-emerald-300/80 pl-1 border-l border-emerald-200 dark:border-emerald-800 truncate max-w-[120px]" 
+                      title={`ভয়েস: ${detectedVoiceLabel}`}
+                    >
+                      {detectedVoiceLabel}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Markdown Download */}
               <button
@@ -683,6 +911,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               >
                 <Download className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
                 <span>ডাউনলোড (.md)</span>
+              </button>
+
+              {/* Share AI Response to Social Media */}
+              <button
+                id={`ai-share-btn-${message.id}`}
+                onClick={() => onShareMessage && onShareMessage(message.text)}
+                title="বিভিন্ন মিডিয়া প্ল্যাটফর্মে এই উত্তরটি শেয়ার করুন"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-emerald-50 dark:bg-stone-850 dark:hover:bg-emerald-950/40 text-stone-600 hover:text-emerald-700 dark:text-stone-300 dark:hover:text-emerald-300 border border-stone-200 dark:border-stone-750 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors shadow-2xs cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>শেয়ার</span>
               </button>
             </div>
           )}
