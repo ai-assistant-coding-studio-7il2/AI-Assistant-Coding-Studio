@@ -27,6 +27,10 @@ import { ArchitectureModal } from './components/ArchitectureModal';
 import { CodePreviewModal } from './components/CodePreviewModal';
 import { ExportModal } from './components/ExportModal';
 import { ShareModal } from './components/ShareModal';
+import { HostingDiagnosticModal } from './components/HostingDiagnosticModal';
+import { CitizenServicesModal } from './components/CitizenServicesModal';
+import { LiveLocationModal } from './components/LiveLocationModal';
+import { useLiveLocation } from './hooks/useLiveLocation';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { AppLogo } from './components/AppLogo';
 import { useAuth } from './context/AuthContext';
@@ -84,7 +88,11 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [architectureModalOpen, setArchitectureModalOpen] = useState(false);
+  const [hostingModalOpen, setHostingModalOpen] = useState(false);
+  const [citizenModalOpen, setCitizenModalOpen] = useState(false);
+  const [liveLocationModalOpen, setLiveLocationModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const locationState = useLiveLocation();
   const [sessionToExport, setSessionToExport] = useState<ChatSession | null>(null);
   const [shareModalConfig, setShareModalConfig] = useState<{
     isOpen: boolean;
@@ -388,6 +396,13 @@ export default function App() {
         signal: controller.signal,
       });
 
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        throw new Error(
+          'হোস্টিং সমস্যা: সার্ভার থেকে HTML পেজ এসেছে (Express ব্যাকএন্ড প্রক্সি চালু নেই)। এটি ঘটে যখন অ্যাপটি শুধুমাত্র স্ট্যাটিক ফাইল (যেমন Firebase Hosting বা GitHub Pages)-এ ডিপ্লয় করা হয় কিন্তু ব্যাকএন্ড Node.js সার্ভার চালু রাখা হয় না। বিস্তারিত জানতে "হোস্টিং গাইড" দেখুন।'
+        );
+      }
+
       if (!response.ok) {
         let errorMsg = `HTTP ত্রুটি ${response.status}`;
         try {
@@ -397,9 +412,9 @@ export default function App() {
           }
         } catch {
           if (response.status === 404) {
-            errorMsg = 'সার্ভার এন্ডপয়েন্ট বা এআই মডেল পাওয়া যায়নি (HTTP 404)। সার্ভার সংযোগ পুনরায় যাচাই করুন অথবা কয়েক সেকেন্ড পর আবার চেষ্টা করুন।';
+            errorMsg = 'সার্ভার এন্ডপয়েন্ট বা এআই প্রক্সি পাওয়া যায়নি (HTTP 404)। আপনি যদি ক্লাউড বা হোস্টিংয়ে অ্যাপটি ডিপ্লয় করে থাকেন, তবে নিশ্চিত করুন Node.js এক্সপ্রেস সার্ভারটি চালু আছে এবং /api/* রুট সচল রয়েছে।';
           } else if (response.status === 502 || response.status === 503) {
-            errorMsg = 'সার্ভার বা গুগল এআই এই মুহূর্তে সাময়িকভাবে ব্যস্ত (HTTP ' + response.status + ')। অনুগ্রহ করে কয়েক সেকেন্ড পর আবার চেষ্টা করুন।';
+            errorMsg = 'হোস্টিং সার্ভার বা গুগল এআই সাময়িকভাবে রেসপন্স করছে না (HTTP ' + response.status + ')। হোস্টিং প্ল্যাটফর্মের পোর্ট ও কন্টেইনার স্ট্যাটাস যাচাই করুন।';
           } else if (response.status === 429) {
             errorMsg = 'এআই কোটা সীমা (Rate Limit 429) শেষ হয়েছে। অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করে পুনরায় চেষ্টা করুন।';
           }
@@ -640,6 +655,8 @@ export default function App() {
         onDeleteSession={handleDeleteSession}
         onExportSession={(s) => handleExportChat(s)}
         onOpenArchitecture={() => setArchitectureModalOpen(true)}
+        onOpenHostingDiagnostic={() => setHostingModalOpen(true)}
+        onOpenCitizenServices={() => setCitizenModalOpen(true)}
         onOpenShare={handleOpenShareModal}
         onSelectMode={setMode}
         currentMode={mode}
@@ -650,6 +667,8 @@ export default function App() {
         <Header
           onToggleSidebar={() => setSidebarOpen((o) => !o)}
           onOpenArchitecture={() => setArchitectureModalOpen(true)}
+          onOpenHostingDiagnostic={() => setHostingModalOpen(true)}
+          onOpenCitizenServices={() => setCitizenModalOpen(true)}
           onNewChat={handleNewChat}
           onClearChat={handleClearChat}
           onExportChat={handleExportChat}
@@ -687,6 +706,16 @@ export default function App() {
 
                 {/* Hero Quick Share & Action Buttons */}
                 <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                  <button
+                    id="hero-citizen-hub-btn"
+                    onClick={() => setCitizenModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-semibold text-xs shadow-md transition-all cursor-pointer group"
+                    title="মোবাইল নম্বর ডিরেক্টরি, ঠিকানা ও এ টু জেড জনসেবা নির্দেশিকা"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-teal-200 group-hover:scale-110 transition-transform" />
+                    <span>A-Z জনসেবা ও তথ্য নির্দেশিকা</span>
+                  </button>
+
                   <button
                     id="hero-share-app-btn"
                     onClick={() =>
@@ -774,6 +803,31 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Citizen Services & Everyday Helper Feature Card */}
+              <div
+                onClick={() => setCitizenModalOpen(true)}
+                className="cursor-pointer group p-5 rounded-2xl bg-gradient-to-r from-teal-950 via-stone-900 to-emerald-950 text-white shadow-lg border border-teal-600/50 hover:border-teal-400 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              >
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-teal-400 text-stone-950 font-bold">
+                      A-Z জনসেবা ও তথ্য কেন্দ্র
+                    </span>
+                    <h3 className="text-base font-bold flex items-center gap-1.5 group-hover:text-teal-300 transition-colors truncate">
+                      <ShieldCheck className="w-4 h-4 text-teal-400 shrink-0" />
+                      মোবাইল নাম্বার, ঠিকানা, পরিচয় যাচাই ও মানুষের দৈনন্দিন কাজ সহজ করার টুলকিট
+                    </h3>
+                  </div>
+                  <p className="text-xs text-stone-300 leading-relaxed max-w-2xl">
+                    জাতীয় জরুরি হটলাইন (৯৯৯, ৩৩৩, ১০৯, ১০৬, ১৬১২২), পোস্টকোড ফাইন্ডার, এনআইডি ও *১৬০০১# সিম মালিকানা যাচাই নির্দেশিকা, এবং মোবাইল হারানো বা ছুটির জন্য আনুষ্ঠানিক দরখাস্ত ও জিডি (GD) প্রস্তুতকারক।
+                  </p>
+                </div>
+                <div className="shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 text-xs font-semibold border border-teal-500/40 backdrop-blur-xs transition-colors shrink-0">
+                  <span>টুলকিট খুলুন</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+
               {/* Quick Prompts Grid */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -812,21 +866,29 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 5 Core Pillars Info Bar */}
+              {/* 6 Core Pillars Info Bar */}
               <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/30">
                 <p className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-3">
-                  অ্যাসিস্ট্যান্টের ৫টি প্রধান কাজের ক্ষেত্র
+                  অ্যাসিস্ট্যান্টের ৬টি প্রধান কাজের ক্ষেত্র
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center text-xs">
                   <div className="p-2.5 rounded-xl bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/60">
                     <Code2 className="w-4 h-4 mx-auto mb-1 text-emerald-500" />
                     <span className="font-semibold block text-stone-800 dark:text-stone-200">কোডিং</span>
                     <span className="text-[10px] text-stone-600 dark:text-stone-400">Python, JS, React</span>
                   </div>
+                  <div 
+                    onClick={() => setCitizenModalOpen(true)}
+                    className="p-2.5 rounded-xl bg-teal-50/80 dark:bg-teal-950/40 border border-teal-200/80 dark:border-teal-800/60 cursor-pointer hover:bg-teal-100 transition-colors"
+                  >
+                    <ShieldCheck className="w-4 h-4 mx-auto mb-1 text-teal-600 dark:text-teal-400" />
+                    <span className="font-semibold block text-stone-800 dark:text-stone-200">জনসেবা ও A-Z</span>
+                    <span className="text-[10px] text-teal-700 dark:text-teal-300">হটলাইন, ঠিকানা, এনআইডি</span>
+                  </div>
                   <div className="p-2.5 rounded-xl bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/60">
                     <PenTool className="w-4 h-4 mx-auto mb-1 text-amber-500" />
                     <span className="font-semibold block text-stone-800 dark:text-stone-200">লেখা ও অনুবাদ</span>
-                    <span className="text-[10px] text-stone-600 dark:text-stone-400">ইমেইল, রিপোর্ট</span>
+                    <span className="text-[10px] text-stone-600 dark:text-stone-400">জিডি, আবেদন, ইমেইল</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/60">
                     <GraduationCap className="w-4 h-4 mx-auto mb-1 text-purple-500" />
@@ -838,10 +900,10 @@ export default function App() {
                     <span className="font-semibold block text-stone-800 dark:text-stone-200">গুগল সার্চ</span>
                     <span className="text-[10px] text-stone-600 dark:text-stone-400">লাইভ ডাটা গ্রাউন্ডিং</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/60 col-span-2 sm:col-span-1">
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/60">
                     <Compass className="w-4 h-4 mx-auto mb-1 text-rose-500" />
-                    <span className="font-semibold block text-stone-800 dark:text-stone-200">পরামর্শ ও ফাইল</span>
-                    <span className="text-[10px] text-stone-600 dark:text-stone-400">রোডম্যাপ ও কোড রান</span>
+                    <span className="font-semibold block text-stone-800 dark:text-stone-200">পরামর্শ ও টুলস</span>
+                    <span className="text-[10px] text-stone-600 dark:text-stone-400">লাইভ জিপিএস ও ম্যাপ</span>
                   </div>
                 </div>
               </div>
@@ -898,6 +960,7 @@ export default function App() {
                     }
                     onSelectPrompt={(p) => handleSendMessage(p)}
                     onRetry={handleRetryLastMessage}
+                    onOpenHostingGuide={() => setHostingModalOpen(true)}
                     onEditMessage={handleEditAndResend}
                     onShareMessage={(text) =>
                       handleOpenShareModal({
@@ -964,6 +1027,32 @@ export default function App() {
         url={shareModalConfig.url}
         sessionId={shareModalConfig.sessionId}
         shareType={shareModalConfig.shareType}
+      />
+
+      {/* Hosting and Gemini AI Diagnostic Modal */}
+      <HostingDiagnosticModal
+        isOpen={hostingModalOpen}
+        onClose={() => setHostingModalOpen(false)}
+      />
+
+      {/* Citizen & Everyday Services Hub Modal */}
+      <CitizenServicesModal
+        isOpen={citizenModalOpen}
+        onClose={() => setCitizenModalOpen(false)}
+        onSendToChat={(p) => handleSendMessage(p)}
+        onOpenLiveLocation={() => {
+          setCitizenModalOpen(false);
+          setLiveLocationModalOpen(true);
+        }}
+      />
+
+      {/* Live Location & GPS Modal */}
+      <LiveLocationModal
+        isOpen={liveLocationModalOpen}
+        onClose={() => setLiveLocationModalOpen(false)}
+        locationState={locationState}
+        onSendToChat={(p) => handleSendMessage(p)}
+        onOpenShareModal={handleOpenShareModal}
       />
 
       {/* PWA Offline Indicator */}

@@ -17,7 +17,9 @@ import {
   Cloud,
   CloudCheck,
   LogIn,
-  Share2
+  Share2,
+  ShieldCheck,
+  PhoneCall
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -34,6 +36,8 @@ interface SidebarProps {
   onDeleteSession: (id: string, e: React.MouseEvent) => void;
   onExportSession?: (session: ChatSession, e: React.MouseEvent) => void;
   onOpenArchitecture: () => void;
+  onOpenHostingDiagnostic?: () => void;
+  onOpenCitizenServices?: () => void;
   onOpenShare?: (config?: { shareType?: 'app' | 'session' }) => void;
   onSelectMode: (mode: AssistantMode) => void;
   currentMode: AssistantMode;
@@ -49,6 +53,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeleteSession,
   onExportSession,
   onOpenArchitecture,
+  onOpenHostingDiagnostic,
+  onOpenCitizenServices,
   onOpenShare,
   onSelectMode,
   currentMode,
@@ -117,6 +123,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             অ্যাসিস্ট্যান্ট মোড (Modes)
           </p>
           <div className="space-y-1">
+            <button
+              onClick={() => onSelectMode('citizen')}
+              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                currentMode === 'citizen'
+                  ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 font-semibold'
+                  : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              <span>জনসেবা ও A-Z সমাধান</span>
+            </button>
             <button
               onClick={() => onSelectMode('coding')}
               className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -248,7 +265,61 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Claude-এর মতো AI বানানোর বাস্তবসম্মত গাইডলাইন (পথ ১ বনাম পথ ২)
             </p>
           </button>
+
+          {onOpenHostingDiagnostic && (
+            <button
+              id="sidebar-hosting-diagnostic-btn"
+              onClick={() => {
+                onOpenHostingDiagnostic();
+                if (window.innerWidth < 768) onClose();
+              }}
+              className="w-full text-left p-2.5 mt-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-950 dark:text-emerald-200">
+                  <Server className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>হোস্টিং ও এআই ডায়াগনস্টিক</span>
+                </div>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              </div>
+              <p className="text-[10px] text-emerald-800/80 dark:text-emerald-300/80 mt-1">
+                সার্ভার হেলথ চেক ও ক্লাউড সমাধান নির্দেশিকা
+              </p>
+            </button>
+          )}
         </div>
+
+        {/* Citizen Services Launcher */}
+        {onOpenCitizenServices && (
+          <div className="px-3 pt-2 pb-1">
+            <button
+              id="sidebar-citizen-services-btn"
+              onClick={() => {
+                onOpenCitizenServices();
+                if (window.innerWidth < 768) onClose();
+              }}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-teal-50/90 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-950/70 border border-teal-200/80 dark:border-teal-800/60 text-left transition-all group cursor-pointer shadow-2xs"
+              title="জরুরি মোবাইল নম্বর, ঠিকানা, পরিচয় যাচাই ও দরখাস্ত কেন্দ্র"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-teal-950 dark:text-teal-200 truncate">
+                    জনসেবা ও A-Z টুলকিট
+                  </p>
+                  <p className="text-[10px] text-teal-700/90 dark:text-teal-400/90 truncate">
+                    হটলাইন, ঠিকানা, এনআইডি ও দরখাস্ত
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/60 px-1.5 py-0.5 rounded-md">
+                খুলুন
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Share on Social Media Platforms */}
         <div className="px-3 pt-1 pb-2">

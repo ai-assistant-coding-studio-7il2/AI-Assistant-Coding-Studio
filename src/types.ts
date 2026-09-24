@@ -1,6 +1,6 @@
 export type Role = 'user' | 'assistant';
 
-export type AssistantMode = 'general' | 'coding' | 'writing' | 'research' | 'learning';
+export type AssistantMode = 'general' | 'citizen' | 'coding' | 'writing' | 'research' | 'learning';
 
 export interface GroundingWeb {
   uri: string;

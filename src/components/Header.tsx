@@ -18,7 +18,9 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
-  FileDown
+  FileDown,
+  Server,
+  ShieldCheck
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -28,6 +30,8 @@ import { UserAuthButton } from './UserAuthButton';
 interface HeaderProps {
   onToggleSidebar: () => void;
   onOpenArchitecture: () => void;
+  onOpenHostingDiagnostic?: () => void;
+  onOpenCitizenServices?: () => void;
   onNewChat: () => void;
   onClearChat: () => void;
   onExportChat: () => void;
@@ -46,6 +50,8 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   onOpenArchitecture,
+  onOpenHostingDiagnostic,
+  onOpenCitizenServices,
   onNewChat,
   onClearChat,
   onExportChat,
@@ -168,6 +174,8 @@ export const Header: React.FC<HeaderProps> = ({
   };
   const getModeInfo = (m: AssistantMode) => {
     switch (m) {
+      case 'citizen':
+        return { label: 'জনসেবা ও A-Z সমাধান', icon: ShieldCheck, color: 'text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-950/60' };
       case 'coding':
         return { label: 'কোডিং মোড', icon: Code2, color: 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60' };
       case 'writing':
@@ -243,6 +251,18 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Header Actions */}
       <div className="flex items-center gap-1.5">
+        {onOpenCitizenServices && (
+          <button
+            id="open-citizen-services-btn"
+            onClick={onOpenCitizenServices}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/60 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 transition-colors shadow-xs"
+            title="মোবাইল নম্বর ডিরেক্টরি, ঠিকানা ও এ টু জেড জনসেবা কেন্দ্র"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+            <span className="hidden sm:inline">জনসেবা ও A-Z টুলকিট</span>
+          </button>
+        )}
+
         <button
           id="open-architecture-guide-btn"
           onClick={onOpenArchitecture}
@@ -252,6 +272,18 @@ export const Header: React.FC<HeaderProps> = ({
           <Layers className="w-3.5 h-3.5 text-amber-500" />
           <span className="hidden sm:inline">AI আর্কিটেকচার ম্যাপ</span>
         </button>
+
+        {onOpenHostingDiagnostic && (
+          <button
+            id="open-hosting-diagnostic-btn"
+            onClick={onOpenHostingDiagnostic}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-colors shadow-xs"
+            title="হোস্টিং ও জেমিনি এআই ডায়াগনস্টিক"
+          >
+            <Server className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">এআই স্ট্যাটাস ও হোস্টিং</span>
+          </button>
+        )}
 
         <button
           id="header-new-chat-btn"

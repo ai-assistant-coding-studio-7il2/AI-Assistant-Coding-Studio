@@ -14,7 +14,8 @@ import {
   Mic,
   MicOff,
   Languages,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { useVoiceInput, VoiceLanguage } from '../hooks/useVoiceInput';
@@ -114,6 +115,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const modeButtons: Array<{ id: AssistantMode; label: string; icon: any }> = [
     { id: 'general', label: 'সাধারণ', icon: Sparkles },
+    { id: 'citizen', label: 'জনসেবা ও A-Z সমাধান', icon: ShieldCheck },
     { id: 'coding', label: 'কোডিং ও ডেভেলপমেন্ট', icon: Code2 },
     { id: 'writing', label: 'লেখালেখি ও অনুবাদ', icon: PenTool },
     { id: 'research', label: 'গবেষণা ও ফ্যাক্ট-চেক', icon: Search },

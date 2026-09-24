@@ -5,13 +5,26 @@ import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.NODE_ENV === 'production' && process.env.PORT
+  ? parseInt(process.env.PORT, 10)
+  : 3000;
+
+// Enable CORS for hosted environments and cross-origin clients
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 app.use(express.json({ limit: '10mb' }));
 
 // Lazy GoogleGenAI client
 function getAIClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not configured in environment variables.');
   }
@@ -25,12 +38,16 @@ function getAIClient() {
   });
 }
 
-// Health check endpoint
+// Health check endpoint with hosting diagnostics
 app.get('/api/health', (req, res) => {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
   res.json({
     status: 'ok',
-    hasApiKey: Boolean(process.env.GEMINI_API_KEY),
+    hasApiKey: Boolean(apiKey && apiKey.length > 0),
+    port: PORT,
+    nodeEnv: process.env.NODE_ENV || 'development',
     time: new Date().toISOString(),
+    supportedModels: FALLBACK_MODELS,
   });
 });
 
@@ -44,28 +61,29 @@ function formatFriendlyErrorMessage(err: any): string {
     errStr.includes('RESOURCE_EXHAUSTED') ||
     errStr.includes('rate limit')
   ) {
-    return 'এআই কোটা সীমা (API Rate Limit / Quota Exceeded 429) সাময়িকভাবে শেষ হয়েছে। অনুরোধের চাপ বেশি থাকায় কিছুক্ষণ পর স্বয়ংক্রিয়ভাবে স্বাভাবিক হবে। অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করে "পুনরায় চেষ্টা করুন" বাটনে ক্লিক করুন অথবা Google Search অফ করে চেষ্টা করুন।';
+    return 'এআই কোটা সীমা (API Rate Limit / Quota Exceeded 429) সাময়িকভাবে শেষ হয়েছে। অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করে আবার চেষ্টা করুন অথবা Google Search অফ করে মেসেজ পাঠান।';
   }
   if (errStr.includes('503') || errStr.includes('UNAVAILABLE') || errStr.includes('high demand') || errStr.includes('overloaded')) {
     return 'গুগল এআই সার্ভার এই মুহূর্তে অতিরিক্ত চাপে রয়েছে (503 Service Unavailable)। স্বয়ংক্রিয়ভাবে বিকল্প মডেলে চেষ্টা করা হচ্ছে... কয়েক সেকেন্ড পর পুনরায় চেষ্টা করুন।';
   }
   if (errStr.includes('404') || errStr.includes('NOT_FOUND') || errStr.includes('no longer available')) {
-    return 'অনুরোধকৃত এআই মডেলটি এই মুহূর্তে প্রস্তুত নয় (404 Not Found)। সিস্টেম স্বয়ংক্রিয়ভাবে বিকল্প সক্রিয় মডেলে সংযোগ করছে। অনুগ্রহ করে আবার চেষ্টা করুন।';
+    return 'অনুরোধকৃত এআই মডেলটি এই মুহূর্তে প্রস্তুত নয় (404 Not Found)। সিস্টেম স্বয়ংক্রিয়ভাবে বিকল্প সক্রিয় মডেলে সংযোগ করছে।';
   }
-  if (errStr.includes('API_KEY') || errStr.includes('API key not valid')) {
-    return 'Gemini API Key পাওয়া যায়নি বা সঠিক নয়। অনুগ্রহ করে সেটিংস থেকে সঠিক API Key যাচাই করুন।';
+  if (
+    errStr.includes('API_KEY') ||
+    errStr.includes('API key not valid') ||
+    errStr.includes('not configured') ||
+    errStr.includes('GEMINI_API_KEY')
+  ) {
+    return 'Gemini API Key পাওয়া যায়নি বা সঠিক নয়। আপনি যদি অ্যাপটি ক্লাউড/হোস্টিং (যেমন Render, Cloud Run, Vercel, Railway)-এ হোস্ট করে থাকেন, তবে হোস্টিং কন্ট্রোল প্যানেলের Environment Variables সেকশনে "GEMINI_API_KEY" যোগ করেছেন কিনা তা নিশ্চিত করুন।';
   }
   return err?.message || 'একটি অপ্রত্যাশিত সমস্যা দেখা দিয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।';
 }
 
 const FALLBACK_MODELS = [
   'gemini-3.8-flash',
-  'gemini-3.6-flash',
-  'gemini-3.5-flash',
-  'gemini-3.5-flash-lite',
   'gemini-flash-latest',
   'gemini-3.1-flash-lite',
-  'gemini-3.1-pro-preview',
 ];
 
 async function fetchStreamWithResilience(
@@ -197,6 +215,36 @@ async function fetchContentWithResilience(
   throw lastError || new Error('All model attempts failed.');
 }
 
+// Quick live connection test endpoint for troubleshooting hosted environments
+app.post('/api/health/test', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const ai = getAIClient();
+    const response = await fetchContentWithResilience(
+      ai,
+      [{ role: 'user', parts: [{ text: 'Respond with the single word: OK' }] }],
+      'You are a health check agent. Return only OK.',
+      false,
+      'gemini-3.8-flash'
+    );
+    const latency = Date.now() - startTime;
+    res.json({
+      success: true,
+      latencyMs: latency,
+      reply: response.text?.trim() || 'OK',
+    });
+  } catch (err: any) {
+    const latency = Date.now() - startTime;
+    console.error('API health test failed:', err);
+    res.status(500).json({
+      success: false,
+      latencyMs: latency,
+      error: formatFriendlyErrorMessage(err),
+      rawMessage: err?.message || String(err),
+    });
+  }
+});
+
 // Streaming Chat API with Search Grounding
 app.post('/api/chat/stream', async (req, res) => {
   try {
@@ -205,6 +253,7 @@ app.post('/api/chat/stream', async (req, res) => {
       prompt,
       systemInstruction,
       enableSearch = true,
+      mode = 'general',
       model = 'gemini-3.8-flash',
     } = req.body;
 
@@ -241,19 +290,37 @@ You are fluent in both Bengali (বাংলা) and English.
 You excel in:
 1. Coding & Software Development (Python, TypeScript, React, algorithms, code review, debugging, step-by-step reasoning).
 2. Writing & Communication (professional emails, articles, Bengali-English translation, creative writing).
-3. Web Research & Link Finding:
-   - Finding active websites, tools, documentation, and official resources.
+3. Citizen Services, Directories & Everyday Task Assistance (জনসেবা, মোবাইল নাম্বার, ঠিকানা, পরিচয় নির্দেশিকা ও দৈনন্দিন কাজ সহজ করা):
+   - Finding official hotlines, police station contacts, emergency fire service, hospital & ambulance numbers, blood banks, and telecom customer care (999, 333, 109, 106, 16122, 16263, 16430, 105, etc.).
+   - Finding addresses, post offices, postcodes (পোস্ট কোড), government ministry offices, embassies, and location guidance.
+   - Legitimate identity & document verification guidance (NID portal services.nidw.gov.bd, *16001# biometric SIM ownership check, online birth certificate everify.bdris.gov.bd, e-passport tracking, and scam/fraud call protection).
+   - Drafting official Bengali applications: General Diary (থানায় জিডি - GD for lost phone/docs), leave letters (ছুটির দরখাস্ত), complaint petitions, citizen certificates, and CV/biodata formats.
+   - Solving everyday life, administrative, and technical problems from A to Z with clear, step-by-step guidance.
+4. Web Research & Link Finding:
+   - Finding active websites, tools, documentation, and official government resources.
    - Finding songs, music, lyrics, playlists, and artists with YouTube links (e.g., [গানের শিরোনাম - শিল্পী](https://www.youtube.com/watch?v=...)) and official streaming platforms (Spotify, YouTube Music, SoundCloud).
    - Finding YouTube videos, tutorials, educational channels, and playlists. Always provide properly formatted Markdown links [ভিডিও বা গানের নাম](ইউটিউব_বা_ওয়েবসাইট_লিঙ্ক).
-4. Learning & Conceptual Explanations (making complex topics easy to understand, interviews, system design).
-5. Analysis, Research & Google Search verification (providing factual, up-to-date information with citations).
-6. File generation, interactive tools, and daily engineering advice.
+5. Learning & Conceptual Explanations (making complex topics easy to understand, interviews, system design).
+6. Analysis, Research & Google Search verification (providing factual, up-to-date information with citations).
+7. File generation, interactive tools, and daily engineering advice.
 
 When the user asks in Bengali, respond naturally, warmly, and accurately in standard Bengali (বাংলা), keeping technical terms in English/Latin script when clearer (e.g., API, Backend, React, Hook, State).
 When the user asks for songs, music, or YouTube videos, search using Google Search and provide accurate song titles, singer/artist names, album/release year, and direct clickable YouTube / website links.
+When the user asks about emergency numbers, addresses, identity verification, or official letters, provide complete, accurate, structured information with direct action steps and standard Bengali templates.
 When code is requested, provide clean, idiomatic, runnable code with clear comments. Format with markdown code blocks.`;
 
-    const effectiveSystemInstruction = systemInstruction ? `${defaultSystem}\n\nSpecific task mode instructions:\n${systemInstruction}` : defaultSystem;
+    let modeInstruction = '';
+    if (mode === 'citizen') {
+      modeInstruction = `\nMode: Citizen & Everyday Life Assistant (জনসেবা, মোবাইল নাম্বার, ঠিকানা ও পরিচয় নির্দেশিকা):
+- Focus on finding official phone numbers, addresses, postcodes, and step-by-step citizen services across Bangladesh and abroad.
+- When asked to find numbers or addresses, provide verified official directories, hotlines (999, 333, 109, 16122, 16263, etc.), and step-by-step guides.
+- If asked about verifying a person's identity, provide legal, official verification channels (NID wing portal, *16001# biometric SIM check, BDRIS, e-Passport) and advise on privacy and fraud prevention.
+- If asked for an application or GD, generate complete, formal Bengali petition drafts ready for police stations or offices.`;
+    }
+
+    const effectiveSystemInstruction = systemInstruction
+      ? `${defaultSystem}${modeInstruction}\n\nSpecific task mode instructions:\n${systemInstruction}`
+      : `${defaultSystem}${modeInstruction}`;
 
     // Setup headers for Server-Sent Events (SSE)
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -335,6 +402,7 @@ app.post('/api/chat', async (req, res) => {
       prompt,
       systemInstruction,
       enableSearch = true,
+      mode = 'general',
       model = 'gemini-3.8-flash',
     } = req.body;
 
@@ -358,8 +426,9 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const defaultSystem = `You are a helpful, brilliant Bengali & English AI Assistant and Coding Companion. Provide thoughtful, well-structured answers with code examples, clear explanations, and accurate facts.`;
-    const effectiveSystemInstruction = systemInstruction ? `${defaultSystem}\n\n${systemInstruction}` : defaultSystem;
+    const defaultSystem = `You are a helpful, brilliant Bengali & English AI Assistant and Coding Companion. Provide thoughtful, well-structured answers with code examples, clear explanations, emergency hotlines, address assistance, and accurate facts.`;
+    const modeNote = mode === 'citizen' ? '\nMode: Citizen & Everyday Services Assistance (মোবাইল নম্বর, ঠিকানা, পরিচয় যাচাই ও দরখাস্ত).' : '';
+    const effectiveSystemInstruction = systemInstruction ? `${defaultSystem}${modeNote}\n\n${systemInstruction}` : `${defaultSystem}${modeNote}`;
 
     const response = await fetchContentWithResilience(
       ai,

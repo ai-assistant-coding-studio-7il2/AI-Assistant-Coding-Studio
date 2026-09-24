@@ -25,7 +25,9 @@ import {
   Music,
   Youtube,
   Disc3,
-  Share2
+  Share2,
+  Search,
+  HelpCircle
 } from 'lucide-react';
 import { ChatMessage, GroundingChunk } from '../types';
 
@@ -36,6 +38,7 @@ interface ChatMessageItemProps {
   onRetry?: () => void;
   onEditMessage?: (messageId: string, newText: string) => void;
   onShareMessage?: (text: string) => void;
+  onOpenHostingGuide?: () => void;
   isGenerating?: boolean;
 }
 
@@ -112,6 +115,236 @@ const CodeBlockItem: React.FC<{
   );
 };
 
+const YouTubeSearchCard: React.FC<{
+  href: string;
+  query: string;
+  title: React.ReactNode;
+}> = ({ href, query, title }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  const musicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
+
+  return (
+    <div className="my-3 p-3.5 rounded-2xl border border-red-500/30 bg-stone-950 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+          <Youtube className="w-4 h-4" />
+        </div>
+        <div className="min-w-0">
+          <h4 className="text-xs font-bold text-stone-100 truncate">
+            {title || query}
+          </h4>
+          <p className="text-[11px] text-stone-400 truncate">
+            ইউটিউব অফিসিয়াল সার্চ লিংক (শতভাগ কার্যকর)
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={handleCopyLink}
+          className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 text-xs transition-colors cursor-pointer"
+          title="লিঙ্ক কপি করুন"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-all shadow-xs"
+        >
+          <Play className="w-3 h-3 fill-current" />
+          <span>ইউটিউবে চালান</span>
+          <ExternalLink className="w-3 h-3" />
+        </a>
+        <a
+          href={musicUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold transition-all border border-stone-700"
+        >
+          <Music className="w-3 h-3 text-red-400" />
+          <span className="hidden sm:inline">Music</span>
+        </a>
+      </div>
+    </div>
+  );
+};
+
+const YouTubeEmbedCard: React.FC<{
+  href: string;
+  videoId: string;
+  title: React.ReactNode;
+}> = ({ href, videoId, title }) => {
+  const [copied, setCopied] = useState(false);
+  const [showTroubleshoot, setShowTroubleshoot] = useState(false);
+  const [useNoCookie, setUseNoCookie] = useState(false);
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const cleanTitle = React.Children.toArray(title)
+    .map((c) => (typeof c === 'string' ? c : ''))
+    .join('')
+    .trim() || 'ভিডিও / গান';
+
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(cleanTitle)}`;
+  const musicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(cleanTitle)}`;
+
+  const embedHost = useNoCookie ? 'www.youtube-nocookie.com' : 'www.youtube.com';
+  const embedUrl = `https://${embedHost}/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1`;
+
+  return (
+    <div className="my-4 rounded-2xl overflow-hidden border border-red-500/30 dark:border-red-500/20 bg-stone-950 text-stone-100 shadow-xl block">
+      {/* Header bar with controls */}
+      <div className="px-3.5 py-2.5 bg-stone-900/90 border-b border-stone-800 flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="p-1 rounded-md bg-red-600 text-white shrink-0">
+            <Play className="w-3.5 h-3.5 fill-current" />
+          </span>
+          <span className="font-semibold text-stone-200 truncate flex items-center gap-1.5">
+            <Music className="w-3.5 h-3.5 text-red-400 shrink-0" />
+            <span className="truncate">{title || 'ইউটিউব গান / ভিডিও'}</span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            title="শেয়ার লিংক কপি করুন"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors text-[11px] cursor-pointer"
+          >
+            {copied ? (
+              <>
+                <Check className="w-3 h-3 text-emerald-400" />
+                <span className="hidden sm:inline">কপি হয়েছে</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3 h-3" />
+                <span className="hidden sm:inline">লিংক কপি</span>
+              </>
+            )}
+          </button>
+
+          <a
+            href={watchUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerPolicy="no-referrer"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white font-medium text-[11px] transition-colors shadow-2xs"
+            title="মূল ইউটিউব অ্যাপে ভিডিওটি খুলুন"
+          >
+            <Youtube className="w-3 h-3" />
+            <span className="hidden sm:inline">ইউটিউবে</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+      </div>
+
+      {/* Embedded Responsive YouTube Player */}
+      <div className="relative aspect-video w-full bg-black">
+        <iframe
+          src={embedUrl}
+          title="YouTube music and video player"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="w-full h-full border-0"
+        />
+      </div>
+
+      {/* Action & Fallback Quick Controls */}
+      <div className="p-3 bg-stone-900 border-t border-stone-800 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <a
+              href={watchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-xs transition-colors"
+            >
+              <Play className="w-3 h-3 fill-current" />
+              <span>সরাসরি YouTube এ চালান</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+
+            <a
+              href={searchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-medium transition-colors border border-stone-700"
+              title="যদি এই ভিডিও আইডি বন্ধ থাকে, ইউটিউবে আসল গানটি খুঁজুন"
+            >
+              <Search className="w-3 h-3 text-red-400" />
+              <span>ইউটিউবে সার্চ করুন</span>
+            </a>
+
+            <a
+              href={musicUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-medium transition-colors border border-stone-700"
+              title="YouTube Music এ শুনুন"
+            >
+              <Music className="w-3 h-3 text-amber-400" />
+              <span className="hidden sm:inline">YouTube Music</span>
+            </a>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowTroubleshoot((prev) => !prev)}
+            className="text-[11px] text-stone-400 hover:text-stone-200 underline cursor-pointer flex items-center gap-1 ml-auto"
+          >
+            <HelpCircle className="w-3 h-3 text-amber-400" />
+            <span>ভিডিও না চললে করণীয় কী?</span>
+          </button>
+        </div>
+
+        {/* Informative explanation of why YouTube embeds fail and how to solve */}
+        {showTroubleshoot && (
+          <div className="p-3 rounded-xl bg-stone-950/90 border border-stone-800 text-xs text-stone-300 space-y-1.5 leading-relaxed animate-in fade-in">
+            <div className="flex items-center gap-1.5 text-amber-400 font-semibold">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>ভিডিও প্লে না হওয়ার কারণ ও সহজ সমাধান:</span>
+            </div>
+            <ul className="list-disc pl-4 space-y-1 text-stone-400 text-[11px]">
+              <li>
+                <strong className="text-stone-200">কপিরাইট ও চ্যানেল বিধিনিষেধ (Error 150/101):</strong> অনেক অফিশিয়াল মিউজিক লেবেল (যেমন T-Series, Sony, VEVO বা শিল্পীদের চ্যানেল) অন্য ওয়েবসাইটে সরাসরি প্লেব্যাক বন্ধ রাখে।
+              </li>
+              <li>
+                <strong className="text-stone-200">কাল্পনিক বা পুরোনো ভিডিও আইডি:</strong> এআই কখনো কখনো সার্চ ছাড়াই পুরোনো বা কাল্পনিক আইডি দিলে ইউটিউব "Video unavailable" দেখায়।
+              </li>
+              <li>
+                <strong className="text-stone-200">সমাধান:</strong> উপরের <span className="text-red-400 font-semibold">"সরাসরি YouTube এ চালান"</span> অথবা <span className="text-red-400 font-semibold">"ইউটিউবে সার্চ করুন"</span> বোতামে ক্লিক করলে আসল ভিডিওটি ইউটিউব অ্যাপ বা ব্রাউজারে সাথে সাথে কোনো বাধা ছাড়াই চলবে।
+              </li>
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* Audio / Song footer info */}
+      <div className="px-3.5 py-2 bg-stone-950/90 border-t border-stone-800/80 text-[11px] text-stone-400 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 truncate">
+          <Disc3 className="w-3.5 h-3.5 text-red-400 animate-spin [animation-duration:6s] shrink-0" />
+          <span className="truncate">এখানে প্লে না হলে সরাসরি 'YouTube এ চালান' বাটনে চাপুন</span>
+        </div>
+        <span className="text-stone-500 font-mono text-[10px] shrink-0">ID: {videoId}</span>
+      </div>
+    </div>
+  );
+};
+
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   message,
   onPreviewCode,
@@ -119,6 +352,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   onRetry,
   onEditMessage,
   onShareMessage,
+  onOpenHostingGuide,
   isGenerating = false,
 }) => {
   const isUser = message.role === 'user';
@@ -129,6 +363,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   const [activeChunk, setActiveChunk] = useState<number>(0);
   const [totalChunks, setTotalChunks] = useState<number>(0);
   const [detectedVoiceLabel, setDetectedVoiceLabel] = useState<string>('');
+  const [speechWarning, setSpeechWarning] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -318,7 +553,8 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
   const handleStartSpeaking = (targetSpeed?: number) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      alert('আপনার ব্রাউজারে Web Speech API (টেক্সট-টু-স্পিচ) সমর্থিত নয়। অনুগ্রহ করে Chrome বা Edge ব্রাউজার ব্যবহার করুন।');
+      setSpeechWarning('আপনার ব্রাউজারে Web Speech API (টেক্সট-টু-স্পিচ) সমর্থিত নয়। অনুগ্রহ করে Chrome বা Edge ব্যবহার করুন।');
+      setTimeout(() => setSpeechWarning(null), 5000);
       return;
     }
 
@@ -426,7 +662,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       );
     },
     p({ children }: any) {
-      return <p className="mb-3 leading-relaxed last:mb-0 text-stone-800 dark:text-stone-200">{children}</p>;
+      return <div className="mb-3 leading-relaxed last:mb-0 text-stone-800 dark:text-stone-200">{children}</div>;
     },
     ul({ children }: any) {
       return <ul className="list-disc pl-5 mb-3 space-y-1 text-stone-800 dark:text-stone-200">{children}</ul>;
@@ -468,69 +704,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       const videoId = ytMatch ? ytMatch[1] : null;
 
       if (isYoutube && videoId) {
-        return (
-          <div className="my-4 rounded-2xl overflow-hidden border border-red-500/30 dark:border-red-500/20 bg-stone-950 text-stone-100 shadow-xl">
-            {/* Header bar with controls */}
-            <div className="px-3.5 py-2.5 bg-stone-900/90 border-b border-stone-800 flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="p-1 rounded-md bg-red-600 text-white shrink-0">
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                </span>
-                <span className="font-semibold text-stone-200 truncate flex items-center gap-1.5">
-                  <Music className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                  <span className="truncate">{children || 'ইউটিউব গান / ভিডিও'}</span>
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(href);
-                    alert('ইউটিউব লিংক কপি করা হয়েছে!');
-                  }}
-                  title="শেয়ার লিংক কপি করুন"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors text-[11px] cursor-pointer"
-                >
-                  <Copy className="w-3 h-3" />
-                  <span className="hidden sm:inline">লিংক কপি</span>
-                </button>
-
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  referrerPolicy="no-referrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white font-medium text-[11px] transition-colors"
-                  title="মূল ইউটিউব অ্যাপে খুলুন"
-                >
-                  <Youtube className="w-3 h-3" />
-                  <span className="hidden sm:inline">ইউটিউবে</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-            </div>
-
-            {/* Embedded Responsive YouTube Player */}
-            <div className="relative aspect-video w-full bg-black">
-              <iframe
-                src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1`}
-                title="YouTube music and video player"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-                className="w-full h-full border-0"
-              />
-            </div>
-
-            {/* Audio / Song footer info */}
-            <div className="px-3.5 py-2 bg-stone-900/60 border-t border-stone-800/80 text-[11px] text-stone-400 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 truncate">
-                <Disc3 className="w-3.5 h-3.5 text-red-400 animate-spin [animation-duration:6s] shrink-0" />
-                <span className="truncate">অ্যাপের ভেতরেই সরাসরি গানটি শুনতে পারেন</span>
-              </div>
-              <span className="text-stone-500 font-mono text-[10px] shrink-0">ID: {videoId}</span>
-            </div>
-          </div>
-        );
+        return <YouTubeEmbedCard href={href} videoId={videoId} title={children} />;
       }
 
       return (
@@ -593,15 +767,25 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
                 <span className="leading-relaxed">{message.error}</span>
               </div>
-              {onRetry && (
-                <button
-                  onClick={onRetry}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
-                >
-                  <RotateCw className="w-3.5 h-3.5" />
-                  <span>পুনরায় চেষ্টা করুন</span>
-                </button>
-              )}
+              <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                {onOpenHostingGuide && (
+                  <button
+                    onClick={onOpenHostingGuide}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 font-medium text-xs transition-colors cursor-pointer"
+                  >
+                    <span>হোস্টিং গাইড</span>
+                  </button>
+                )}
+                {onRetry && (
+                  <button
+                    onClick={onRetry}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs shadow-xs transition-colors cursor-pointer"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                    <span>পুনরায় চেষ্টা করুন</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -899,6 +1083,14 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                       {detectedVoiceLabel}
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* Speech warning if Web Speech API unsupported */}
+              {speechWarning && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-200">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>{speechWarning}</span>
                 </div>
               )}
 

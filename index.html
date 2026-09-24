@@ -9,14 +9,60 @@
     <!-- Filter benign dev-environment logs like [vite] websocket in sandboxed iframe -->
     <script>
       (function() {
-        ['error', 'warn'].forEach(function(m) {
+        function shouldFilter(args) {
+          if (!args || !args.length) return false;
+          for (var i = 0; i < args.length; i++) {
+            var a = args[i];
+            var str = '';
+            if (typeof a === 'string') {
+              str = a;
+            } else if (a && typeof a === 'object') {
+              str = (a.message || '') + ' ' + (a.stack || '') + ' ' + (a.name || '');
+              try { str += ' ' + JSON.stringify(a); } catch (err) {}
+            }
+            if (
+              str.indexOf('[vite]') !== -1 ||
+              str.indexOf('vite:ws') !== -1 ||
+              str.indexOf('WebSocket connection to') !== -1 ||
+              str.indexOf('failed to connect to websocket') !== -1
+            ) {
+              return true;
+            }
+          }
+          return false;
+        }
+
+        ['error', 'warn', 'log', 'info', 'debug'].forEach(function(m) {
           var orig = console[m];
+          if (!orig) return;
           console[m] = function() {
-            var first = arguments[0];
-            if (typeof first === 'string' && first.indexOf('[vite]') !== -1) return;
+            if (shouldFilter(arguments)) return;
             orig.apply(console, arguments);
           };
         });
+
+        window.addEventListener('error', function(e) {
+          var msg = (e && (e.message || (e.error && e.error.message))) || '';
+          if (
+            typeof msg === 'string' &&
+            (msg.indexOf('[vite]') !== -1 || msg.indexOf('WebSocket') !== -1)
+          ) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = (e && e.reason) || '';
+          var str = typeof reason === 'string' ? reason : (reason && reason.message) || '';
+          if (
+            typeof str === 'string' &&
+            (str.indexOf('[vite]') !== -1 || str.indexOf('WebSocket') !== -1)
+          ) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
       })();
     </script>
     
