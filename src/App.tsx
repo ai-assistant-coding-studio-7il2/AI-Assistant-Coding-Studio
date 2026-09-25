@@ -41,6 +41,7 @@ import { useAuth } from './context/AuthContext';
 import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
 import workspaceHeroImg from './assets/images/ai_workspace_hero_1790066671032.jpg';
 import apiArchitectureImg from './assets/images/api_architecture_graphic_1790066692425.jpg';
+import { Analytics } from '@vercel/analytics/react';
 
 const STORAGE_KEY = 'ai_studio_chat_sessions_v1';
 const THEME_KEY = 'ai_studio_theme_mode';
@@ -786,7 +787,7 @@ export default function App() {
                     আপনার বুদ্ধিমান প্রোগ্রামিং ও ক্রিয়েটিভ অ্যাসিস্ট্যান্ট
                   </h3>
                   <p className="text-xs text-stone-300 max-w-xl line-clamp-1 mt-0.5">
-                    রিয়েল-টাইম Gemini 3.8 Flash, ফায়ারস্টোর ক্লাউড সিঙ্ক এবং ইন্টেলিজেন্ট কোড জেনারেটর
+                    রিয়েল-টাইম Gemini 3.8 Flash, ফায়ারস্টোর ক্লাউড সিঙ্ক এবং ইন্টেলিজেন্ট কোড জেনা���েটর
                   </p>
                 </div>
               </div>
@@ -890,7 +891,7 @@ export default function App() {
               {/* 6 Core Pillars Info Bar */}
               <div className="p-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/30">
                 <p className="text-xs font-bold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-3">
-                  অ্যাসিস্ট্যান্টের ৬টি প্রধান কাজের ক্ষেত্র
+                  অ্যাসিস্ট্যান্টের ৬টি প্রধা��� কাজের ক্ষেত্র
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center text-xs">
                   <div className="p-2.5 rounded-xl bg-white dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700/60">
@@ -1091,6 +1092,9 @@ export default function App() {
 
       {/* PWA Offline Indicator */}
       <OfflineIndicator />
+      
+      {/* Vercel Web Analytics */}
+      <Analytics />
     </div>
   </MusicPlayerProvider>
   );
