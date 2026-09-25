@@ -43,3 +43,11 @@ export interface QuickPrompt {
   descriptionBn: string;
   icon: string;
 }
+
+export interface MusicTrack {
+  videoId: string;
+  title: string;
+  artist?: string;
+  originalUrl?: string;
+  searchQuery?: string;
+}

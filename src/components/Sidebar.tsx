@@ -19,7 +19,8 @@ import {
   LogIn,
   Share2,
   ShieldCheck,
-  PhoneCall
+  PhoneCall,
+  Bot
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -38,6 +39,7 @@ interface SidebarProps {
   onOpenArchitecture: () => void;
   onOpenHostingDiagnostic?: () => void;
   onOpenCitizenServices?: () => void;
+  onOpenFreelanceAgent?: () => void;
   onOpenShare?: (config?: { shareType?: 'app' | 'session' }) => void;
   onSelectMode: (mode: AssistantMode) => void;
   currentMode: AssistantMode;
@@ -55,6 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenArchitecture,
   onOpenHostingDiagnostic,
   onOpenCitizenServices,
+  onOpenFreelanceAgent,
   onOpenShare,
   onSelectMode,
   currentMode,
@@ -316,6 +319,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/60 px-1.5 py-0.5 rounded-md">
                 খুলুন
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Autonomous Remote Freelance AI Agent Launcher */}
+        {onOpenFreelanceAgent && (
+          <div className="px-3 pt-1 pb-1">
+            <button
+              id="sidebar-freelance-agent-btn"
+              onClick={() => {
+                onOpenFreelanceAgent();
+                if (window.innerWidth < 768) onClose();
+              }}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent hover:from-emerald-500/25 border border-emerald-500/30 text-left transition-all group cursor-pointer shadow-2xs"
+              title="২৪ ঘণ্টা স্বয়ংক্রিয় রিমোট জব ও ফ্রিল্যান্স এআই এজেন্ট"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                      রিমোট এআই জব এজেন্ট
+                    </p>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  </div>
+                  <p className="text-[10px] text-emerald-700 dark:text-emerald-400 truncate">
+                    Upwork/Remote জব ও প্রপোজাল
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded-md">
+                ২৪/৭
               </span>
             </button>
           </div>

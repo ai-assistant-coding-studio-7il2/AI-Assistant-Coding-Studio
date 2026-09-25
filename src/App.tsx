@@ -29,10 +29,14 @@ import { ExportModal } from './components/ExportModal';
 import { ShareModal } from './components/ShareModal';
 import { HostingDiagnosticModal } from './components/HostingDiagnosticModal';
 import { CitizenServicesModal } from './components/CitizenServicesModal';
+import { FreelanceAgentModal } from './components/FreelanceAgentModal';
 import { LiveLocationModal } from './components/LiveLocationModal';
 import { useLiveLocation } from './hooks/useLiveLocation';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { AppLogo } from './components/AppLogo';
+import { MusicPlayerProvider } from './context/MusicPlayerContext';
+import { MusicPlayerModal } from './components/MusicPlayerModal';
+import { LandingPageVideoShowcase } from './components/LandingPageVideoShowcase';
 import { useAuth } from './context/AuthContext';
 import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
 import workspaceHeroImg from './assets/images/ai_workspace_hero_1790066671032.jpg';
@@ -90,6 +94,7 @@ export default function App() {
   const [architectureModalOpen, setArchitectureModalOpen] = useState(false);
   const [hostingModalOpen, setHostingModalOpen] = useState(false);
   const [citizenModalOpen, setCitizenModalOpen] = useState(false);
+  const [freelanceAgentModalOpen, setFreelanceAgentModalOpen] = useState(false);
   const [liveLocationModalOpen, setLiveLocationModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const locationState = useLiveLocation();
@@ -643,8 +648,9 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased">
-      {/* Sidebar */}
+    <MusicPlayerProvider>
+      <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased">
+        {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -657,6 +663,7 @@ export default function App() {
         onOpenArchitecture={() => setArchitectureModalOpen(true)}
         onOpenHostingDiagnostic={() => setHostingModalOpen(true)}
         onOpenCitizenServices={() => setCitizenModalOpen(true)}
+        onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
         onOpenShare={handleOpenShareModal}
         onSelectMode={setMode}
         currentMode={mode}
@@ -669,6 +676,7 @@ export default function App() {
           onOpenArchitecture={() => setArchitectureModalOpen(true)}
           onOpenHostingDiagnostic={() => setHostingModalOpen(true)}
           onOpenCitizenServices={() => setCitizenModalOpen(true)}
+          onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
           onNewChat={handleNewChat}
           onClearChat={handleClearChat}
           onExportChat={handleExportChat}
@@ -707,6 +715,16 @@ export default function App() {
                 {/* Hero Quick Share & Action Buttons */}
                 <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
                   <button
+                    id="hero-freelance-agent-btn"
+                    onClick={() => setFreelanceAgentModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-98 text-white font-semibold text-xs shadow-md transition-all cursor-pointer group"
+                    title="২৪ ঘণ্টা স্বয়ংক্রিয় রিমোট জব ও ফ্রিল্যান্স এআই এজেন্ট স্টুডিও"
+                  >
+                    <Bot className="w-4 h-4 text-emerald-200 group-hover:scale-110 transition-transform" />
+                    <span>২৪/৭ রিমোট জব এআই এজেন্ট</span>
+                  </button>
+
+                  <button
                     id="hero-citizen-hub-btn"
                     onClick={() => setCitizenModalOpen(true)}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 active:scale-98 text-white font-semibold text-xs shadow-md transition-all cursor-pointer group"
@@ -742,6 +760,9 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* YouTube Music & Video In-App Fullscreen Studio (No chat required) */}
+              <LandingPageVideoShowcase onSendToChat={(p) => handleSendMessage(p)} />
 
               {/* Visual Studio Showcase Banner */}
               <div className="relative overflow-hidden rounded-2xl border border-stone-200/80 dark:border-stone-800 shadow-md bg-stone-950 group">
@@ -1046,6 +1067,13 @@ export default function App() {
         }}
       />
 
+      {/* Autonomous 24/7 Remote Freelance AI Agent Modal */}
+      <FreelanceAgentModal
+        isOpen={freelanceAgentModalOpen}
+        onClose={() => setFreelanceAgentModalOpen(false)}
+        onSendToChat={(p) => handleSendMessage(p)}
+      />
+
       {/* Live Location & GPS Modal */}
       <LiveLocationModal
         isOpen={liveLocationModalOpen}
@@ -1055,8 +1083,15 @@ export default function App() {
         onOpenShareModal={handleOpenShareModal}
       />
 
+      {/* Fullscreen & Floating YouTube In-App Music Player */}
+      <MusicPlayerModal
+        onAskAIAboutSong={(prompt) => handleSendMessage(prompt)}
+        onOpenShareModal={handleOpenShareModal}
+      />
+
       {/* PWA Offline Indicator */}
       <OfflineIndicator />
     </div>
+  </MusicPlayerProvider>
   );
 }

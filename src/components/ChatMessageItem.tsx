@@ -27,8 +27,10 @@ import {
   Disc3,
   Share2,
   Search,
-  HelpCircle
+  HelpCircle,
+  Maximize2
 } from 'lucide-react';
+import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { ChatMessage, GroundingChunk } from '../types';
 
 interface ChatMessageItemProps {
@@ -127,6 +129,8 @@ const YouTubeSearchCard: React.FC<{
     setTimeout(() => setCopied(false), 2000);
   };
   const musicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
+  const musicPlayer = useMusicPlayer();
+  const cleanTitle = typeof title === 'string' ? title : query;
 
   return (
     <div className="my-3 p-3.5 rounded-2xl border border-red-500/30 bg-stone-950 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -136,7 +140,7 @@ const YouTubeSearchCard: React.FC<{
         </div>
         <div className="min-w-0">
           <h4 className="text-xs font-bold text-stone-100 truncate">
-            {title || query}
+            {cleanTitle}
           </h4>
           <p className="text-[11px] text-stone-400 truncate">
             ইউটিউব অফিসিয়াল সার্চ লিংক (শতভাগ কার্যকর)
@@ -144,6 +148,22 @@ const YouTubeSearchCard: React.FC<{
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() =>
+            musicPlayer.playTrack({
+              videoId: '',
+              title: cleanTitle,
+              originalUrl: href,
+              searchQuery: query,
+            })
+          }
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:brightness-110 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer"
+          title="আমাদের অ্যাপের ভেতরে বড় ফুলস্ক্রিন প্লেয়ারে গানটি চালান"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+          <span>ফুলস্ক্রিন প্লেয়ার</span>
+        </button>
         <button
           type="button"
           onClick={handleCopyLink}
@@ -156,17 +176,17 @@ const YouTubeSearchCard: React.FC<{
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-all shadow-xs"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-750 text-white font-semibold text-xs transition-all border border-stone-750"
         >
-          <Play className="w-3 h-3 fill-current" />
-          <span>ইউটিউবে চালান</span>
+          <Play className="w-3 h-3 fill-current text-red-500" />
+          <span className="hidden sm:inline">ইউটিউবে</span>
           <ExternalLink className="w-3 h-3" />
         </a>
         <a
           href={musicUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold transition-all border border-stone-700"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-200 text-xs font-semibold transition-all border border-stone-700"
         >
           <Music className="w-3 h-3 text-red-400" />
           <span className="hidden sm:inline">Music</span>
@@ -185,6 +205,8 @@ const YouTubeEmbedCard: React.FC<{
   const [showTroubleshoot, setShowTroubleshoot] = useState(false);
   const [useNoCookie, setUseNoCookie] = useState(false);
 
+  const musicPlayer = useMusicPlayer();
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(href);
     setCopied(true);
@@ -201,7 +223,21 @@ const YouTubeEmbedCard: React.FC<{
   const musicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(cleanTitle)}`;
 
   const embedHost = useNoCookie ? 'www.youtube-nocookie.com' : 'www.youtube.com';
-  const embedUrl = `https://${embedHost}/embed/${videoId}?rel=0&modestbranding=1&enablejsapi=1`;
+  const embedUrl = `https://${embedHost}/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`;
+
+  const handleOpenFullscreenPlayer = () => {
+    musicPlayer.playVideoId(videoId, cleanTitle, {
+      autoPlay: true,
+      startMinimized: false,
+    });
+  };
+
+  const handleOpenBackgroundPlayer = () => {
+    musicPlayer.playVideoId(videoId, cleanTitle, {
+      autoPlay: true,
+      startMinimized: true,
+    });
+  };
 
   return (
     <div className="my-4 rounded-2xl overflow-hidden border border-red-500/30 dark:border-red-500/20 bg-stone-950 text-stone-100 shadow-xl block">
@@ -220,21 +256,21 @@ const YouTubeEmbedCard: React.FC<{
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
+            onClick={handleOpenFullscreenPlayer}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-r from-red-600 to-rose-600 hover:brightness-110 text-white font-semibold text-[11px] transition-all shadow-xs cursor-pointer"
+            title="আমাদের অ্যাপের ভেতরে ফুলস্ক্রিন প্লেয়ারে গানটি খুলুন"
+          >
+            <Maximize2 className="w-3 h-3" />
+            <span>ফুলস্ক্রিন প্লেয়ার</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleCopyLink}
             title="শেয়ার লিংক কপি করুন"
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors text-[11px] cursor-pointer"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors text-[11px] cursor-pointer"
           >
-            {copied ? (
-              <>
-                <Check className="w-3 h-3 text-emerald-400" />
-                <span className="hidden sm:inline">কপি হয়েছে</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3 h-3" />
-                <span className="hidden sm:inline">লিংক কপি</span>
-              </>
-            )}
+            {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
           </button>
 
           <a
@@ -242,10 +278,10 @@ const YouTubeEmbedCard: React.FC<{
             target="_blank"
             rel="noopener noreferrer"
             referrerPolicy="no-referrer"
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white font-medium text-[11px] transition-colors shadow-2xs"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-800 hover:bg-stone-750 text-white font-medium text-[11px] transition-colors shadow-2xs border border-stone-750"
             title="মূল ইউটিউব অ্যাপে ভিডিওটি খুলুন"
           >
-            <Youtube className="w-3 h-3" />
+            <Youtube className="w-3 h-3 text-red-500" />
             <span className="hidden sm:inline">ইউটিউবে</span>
             <ExternalLink className="w-3 h-3" />
           </a>
@@ -267,13 +303,32 @@ const YouTubeEmbedCard: React.FC<{
       <div className="p-3 bg-stone-900 border-t border-stone-800 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleOpenFullscreenPlayer}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:brightness-110 text-white text-xs font-bold shadow-md shadow-red-600/25 transition-all cursor-pointer"
+              title="আমাদের অ্যাপের ভেতরে বড় ফুলস্ক্রিন প্লেয়ারে গানটি চালান"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span>অ্যাপে ফুলস্ক্রিন প্লেয়ার</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenBackgroundPlayer}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-emerald-300 hover:text-emerald-200 text-xs font-semibold border border-emerald-500/40 shadow-xs transition-colors cursor-pointer"
+              title="চ্যাট চালিয়ে যান, গানটি ব্যাকগ্রাউন্ডে চলতে থাকবে"
+            >
+              <span>ব্যাকগ্রাউন্ডে চালান</span>
+            </button>
+
             <a
               href={watchUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-xs transition-colors"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-white text-xs font-semibold shadow-xs transition-colors border border-stone-700"
             >
-              <Play className="w-3 h-3 fill-current" />
+              <Play className="w-3 h-3 fill-current text-red-500" />
               <span>সরাসরি YouTube এ চালান</span>
               <ExternalLink className="w-3 h-3" />
             </a>
@@ -697,7 +752,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     a({ href, children }: any) {
       if (!href) return <span>{children}</span>;
 
-      // Extract YouTube Video ID from any URL format:
+      // 1. Check if it's a YouTube search query URL
+      const searchMatch = href.match(/(?:youtube|music\.youtube)\.com\/(?:results\?search_query=|search\?q=)([^&#]+)/i);
+      if (searchMatch) {
+        let query = searchMatch[1];
+        try {
+          query = decodeURIComponent(query.replace(/\+/g, ' '));
+        } catch (_) {}
+        return <YouTubeSearchCard href={href} query={query} title={children} />;
+      }
+
+      // 2. Extract YouTube Video ID from any URL format:
       // watch?v=ID, youtu.be/ID, shorts/ID, embed/ID, music.youtube.com/watch?v=ID
       const ytMatch = href.match(/(?:(?:youtube|music\.youtube)\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
       const isYoutube = Boolean(ytMatch);

@@ -15,10 +15,15 @@ import {
   MicOff,
   Languages,
   AlertCircle,
-  ShieldCheck
+  ShieldCheck,
+  Youtube,
+  Play,
+  Maximize2
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { useVoiceInput, VoiceLanguage } from '../hooks/useVoiceInput';
+import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { extractYouTubeVideoId } from '../utils/youtube';
 
 interface ChatInputProps {
   input: string;
@@ -45,6 +50,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const musicPlayer = useMusicPlayer();
+  const detectedYouTubeId = extractYouTubeVideoId(input);
 
   const {
     isListening,
@@ -240,6 +247,48 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <span>Google Search: {enableSearch ? 'সক্রিয় (ON)' : 'বন্ধ (OFF)'}</span>
           </button>
         </div>
+
+        {/* Instant Detected YouTube Link Chip */}
+        {detectedYouTubeId && (
+          <div className="mb-2.5 p-2.5 rounded-xl bg-gradient-to-r from-red-600/15 via-rose-600/10 to-transparent border border-red-500/40 flex flex-wrap items-center justify-between gap-2.5 text-xs animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="p-1 rounded-md bg-red-600 text-white shrink-0 shadow-xs">
+                <Youtube className="w-3.5 h-3.5" />
+              </span>
+              <span className="font-semibold text-stone-800 dark:text-stone-200 truncate">
+                ইউটিউব ভিডিও লিঙ্ক শনাক্ত হয়েছে (ID: {detectedYouTubeId})
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  musicPlayer.playVideoId(detectedYouTubeId, 'ইউটিউব ভিডিও / গান', {
+                    autoPlay: true,
+                    startMinimized: true,
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-emerald-300 font-semibold text-xs border border-emerald-500/40 transition-all cursor-pointer"
+                title="চ্যাট চালিয়ে যান, গান ব্যাকগ্রাউন্ডে চলবে"
+              >
+                <span>ব্যাকগ্রাউন্ডে চালান</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  musicPlayer.playVideoId(detectedYouTubeId, 'ইউটিউব ভিডিও / গান', {
+                    autoPlay: true,
+                    startMinimized: false,
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-red-600 to-rose-600 hover:brightness-110 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>ফুলস্ক্রিন প্লেয়ার</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Input Text Box */}
         <div className={`relative rounded-2xl border bg-white dark:bg-stone-950 shadow-xs transition-all ${

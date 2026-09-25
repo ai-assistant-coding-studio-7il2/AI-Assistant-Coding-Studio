@@ -20,18 +20,22 @@ import {
   ExternalLink,
   FileDown,
   Server,
-  ShieldCheck
+  ShieldCheck,
+  Youtube,
+  Bot
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { AppLogo } from './AppLogo';
 import { UserAuthButton } from './UserAuthButton';
+import { useMusicPlayer } from '../context/MusicPlayerContext';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
   onOpenArchitecture: () => void;
   onOpenHostingDiagnostic?: () => void;
   onOpenCitizenServices?: () => void;
+  onOpenFreelanceAgent?: () => void;
   onNewChat: () => void;
   onClearChat: () => void;
   onExportChat: () => void;
@@ -52,6 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenArchitecture,
   onOpenHostingDiagnostic,
   onOpenCitizenServices,
+  onOpenFreelanceAgent,
   onNewChat,
   onClearChat,
   onExportChat,
@@ -66,6 +71,7 @@ export const Header: React.FC<HeaderProps> = ({
   isGeneratingTitle,
   activeSessionId,
 }) => {
+  const musicPlayer = useMusicPlayer();
   const [isShareDropdownOpen, setIsShareDropdownOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -552,6 +558,40 @@ export const Header: React.FC<HeaderProps> = ({
             <Trash2 className="w-4 h-4" />
           </button>
         )}
+
+        {/* Autonomous Remote AI Freelance Agent button */}
+        {onOpenFreelanceAgent && (
+          <button
+            id="freelance-agent-header-btn"
+            onClick={onOpenFreelanceAgent}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 transition-all text-xs font-semibold cursor-pointer"
+            title="২৪ ঘণ্টা স্বয়ংক্রিয় রিমোট জব ও ফ্রিল্যান্স এআই এজেন্ট স্টুডিও"
+          >
+            <Bot className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">রিমোট জব এজেন্ট</span>
+          </button>
+        )}
+
+        {/* Quick In-App Music / Video Player button */}
+        <button
+          onClick={() => {
+            if (musicPlayer.currentTrack) {
+              musicPlayer.expandPlayer();
+            } else {
+              musicPlayer.playTrack({
+                videoId: 'jfKfPfyJRdk',
+                title: 'Lofi Girl - Chill Beats to Code & Study To',
+                originalUrl: 'https://www.youtube.com/watch?v=jfKfPfyJRdk',
+                searchQuery: 'Lofi Girl',
+              });
+            }
+          }}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/25 transition-all text-xs font-semibold cursor-pointer"
+          title="ইন-অ্যাপ ইউটিউব মিউজিক প্লেয়ার খুলুন"
+        >
+          <Youtube className="w-3.5 h-3.5 fill-current" />
+          <span className="hidden sm:inline">মিউজিক প্লেয়ার</span>
+        </button>
 
         {/* Cloud Sync & Firebase User Auth */}
         <UserAuthButton onSyncAll={onSyncAll} compact={true} />
