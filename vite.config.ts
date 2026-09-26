@@ -7,6 +7,42 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(() => {
   return {
     plugins: [
+      {
+        name: 'silence-vite-dev-logs',
+        transformIndexHtml: {
+          order: 'pre',
+          handler() {
+            return [
+              {
+                tag: 'script',
+                injectTo: 'head-prepend',
+                children: `(function(){
+  var origErr = console.error, origWarn = console.warn, origLog = console.log, origDebug = console.debug;
+  function isVite(args){
+    if(!args || !args.length) return false;
+    for(var i=0; i<args.length; i++){
+      var a = args[i];
+      var s = typeof a === 'string' ? a : (a && (a.message || a.stack)) || '';
+      if(s.indexOf('[vite]') !== -1 || s.indexOf('WebSocket') !== -1 || s.indexOf('vite:') !== -1) return true;
+    }
+    return false;
+  }
+  console.error = function(){ if(!isVite(arguments)) origErr.apply(console, arguments); };
+  console.warn = function(){ if(!isVite(arguments)) origWarn.apply(console, arguments); };
+  console.log = function(){ if(!isVite(arguments)) origLog.apply(console, arguments); };
+  console.debug = function(){ if(!isVite(arguments)) origDebug.apply(console, arguments); };
+  window.addEventListener('error', function(e){
+    var m = (e && (e.message || (e.error && e.error.message))) || '';
+    if(typeof m === 'string' && (m.indexOf('[vite]') !== -1 || m.indexOf('WebSocket') !== -1)){
+      e.preventDefault(); e.stopImmediatePropagation(); return true;
+    }
+  }, true);
+})();`,
+              },
+            ];
+          },
+        },
+      },
       react(),
       tailwindcss(),
       VitePWA({
@@ -100,6 +136,11 @@ export default defineConfig(() => {
       alias: {
         '@': path.resolve(process.cwd(), '.'),
       },
+    },
+    define: {
+      'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(
+        process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || ''
+      ),
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

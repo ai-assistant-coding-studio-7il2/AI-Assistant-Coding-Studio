@@ -31,11 +31,14 @@ import { HostingDiagnosticModal } from './components/HostingDiagnosticModal';
 import { CitizenServicesModal } from './components/CitizenServicesModal';
 import { FreelanceAgentModal } from './components/FreelanceAgentModal';
 import { LiveLocationModal } from './components/LiveLocationModal';
+import { callDirectGeminiStream, generateDirectSessionTitle } from './lib/directGemini';
 import { useLiveLocation } from './hooks/useLiveLocation';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { AppLogo } from './components/AppLogo';
 import { MusicPlayerProvider } from './context/MusicPlayerContext';
 import { MusicPlayerModal } from './components/MusicPlayerModal';
+import { MiniBrowserProvider } from './context/MiniBrowserContext';
+import { MiniGoogleBrowserModal } from './components/MiniGoogleBrowserModal';
 import { LandingPageVideoShowcase } from './components/LandingPageVideoShowcase';
 import { useAuth } from './context/AuthContext';
 import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
@@ -335,23 +338,36 @@ export default function App() {
     );
 
     try {
-      const response = await fetch('/api/session/title', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userMessage: userText,
-          assistantMessage: assistantText.slice(0, 1000),
-          mode: sessionMode,
-        }),
-      });
+      let conciseTitle = '';
+      try {
+        const response = await fetch('/api/session/title', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userMessage: userText,
+            assistantMessage: assistantText.slice(0, 1000),
+            mode: sessionMode,
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
+        if (response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          if (!contentType.includes('text/html')) {
+            const data = await response.json();
+            if (data?.title && typeof data.title === 'string' && data.title.trim()) {
+              conciseTitle = data.title.trim();
+            }
+          }
+        }
+      } catch {
+        // server request failed, will use direct fallback
       }
 
-      const data = await response.json();
-      if (data?.title && typeof data.title === 'string' && data.title.trim()) {
-        const conciseTitle = data.title.trim();
+      if (!conciseTitle) {
+        conciseTitle = await generateDirectSessionTitle(userText);
+      }
+
+      if (conciseTitle) {
         setSessions((prev) =>
           prev.map((s) => {
             if (s.id === targetSessionId) {
@@ -389,23 +405,85 @@ export default function App() {
     abortControllerRef.current = controller;
 
     try {
-      const response = await fetch('/api/chat/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let useDirectFallback = false;
+      let response: Response | null = null;
+
+      try {
+        response = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: updatedMessages.map((m) => ({ role: m.role, text: m.text })),
+            prompt: promptText,
+            enableSearch,
+            mode,
+          }),
+          signal: controller.signal,
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('text/html') || response.status === 404) {
+          useDirectFallback = true;
+        }
+      } catch (networkErr: any) {
+        if (controller.signal.aborted) throw networkErr;
+        useDirectFallback = true;
+      }
+
+      // If server is not responding (static deployment without Node backend), run direct Gemini client
+      if (useDirectFallback) {
+        let accumulatedText = '';
+        let accumulatedGrounding: any[] = [];
+        let searchQueries: string[] = [];
+
+        await callDirectGeminiStream({
           messages: updatedMessages.map((m) => ({ role: m.role, text: m.text })),
           prompt: promptText,
           enableSearch,
           mode,
-        }),
-        signal: controller.signal,
-      });
+          signal: controller.signal,
+          onChunk: (textChunk) => {
+            accumulatedText += textChunk;
+            updateActiveSession((s) => ({
+              ...s,
+              messages: s.messages.map((m) =>
+                m.id === assistantMsgId ? { ...m, text: accumulatedText, error: undefined, isStreaming: true } : m
+              ),
+            }));
+          },
+          onGrounding: (grounding) => {
+            accumulatedGrounding = [grounding];
+          },
+          onSearchQueries: (queries) => {
+            searchQueries = queries;
+          },
+        });
 
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('text/html')) {
-        throw new Error(
-          'হোস্টিং সমস্যা: সার্ভার থেকে HTML পেজ এসেছে (Express ব্যাকএন্ড প্রক্সি চালু নেই)। এটি ঘটে যখন অ্যাপটি শুধুমাত্র স্ট্যাটিক ফাইল (যেমন Firebase Hosting বা GitHub Pages)-এ ডিপ্লয় করা হয় কিন্তু ব্যাকএন্ড Node.js সার্ভার চালু রাখা হয় না। বিস্তারিত জানতে "হোস্টিং গাইড" দেখুন।'
-        );
+        const finalAssistantText = accumulatedText || 'দুঃখিত, কোনো উত্তর পাওয়া যায়নি। পুনরায় চেষ্টা করুন।';
+        updateActiveSession((s) => ({
+          ...s,
+          updatedAt: Date.now(),
+          messages: s.messages.map((m) =>
+            m.id === assistantMsgId
+              ? {
+                  ...m,
+                  text: finalAssistantText,
+                  isStreaming: false,
+                  groundingMetadata: accumulatedGrounding.length > 0 ? accumulatedGrounding : undefined,
+                  searchQueries: searchQueries.length > 0 ? searchQueries : undefined,
+                }
+              : m
+          ),
+        }));
+
+        if (isFirstTurn && accumulatedText.trim() && (targetSessionId || activeSessionId)) {
+          generateSessionTitle(targetSessionId || activeSessionId, promptText, finalAssistantText, mode);
+        }
+        return;
+      }
+
+      if (!response) {
+        throw new Error('সার্ভার থেকে কোনো রেসপন্স পাওয়া যায়নি।');
       }
 
       if (!response.ok) {
@@ -417,9 +495,9 @@ export default function App() {
           }
         } catch {
           if (response.status === 404) {
-            errorMsg = 'সার্ভার এন্ডপয়েন্ট বা এআই প্রক্সি পাওয়া যায়নি (HTTP 404)। আপনি যদি ক্লাউড বা হোস্টিংয়ে অ্যাপটি ডিপ্লয় করে থাকেন, তবে নিশ্চিত করুন Node.js এক্সপ্রেস সার্ভারটি চালু আছে এবং /api/* রুট সচল রয়েছে।';
+            errorMsg = 'সার্ভার এন্ডপয়েন্ট বা এআই প্রক্সি পাওয়া যায়নি (HTTP 404)।';
           } else if (response.status === 502 || response.status === 503) {
-            errorMsg = 'হোস্টিং সার্ভার বা গুগল এআই সাময়িকভাবে রেসপন্স করছে না (HTTP ' + response.status + ')। হোস্টিং প্ল্যাটফর্মের পোর্ট ও কন্টেইনার স্ট্যাটাস যাচাই করুন।';
+            errorMsg = 'হোস্টিং সার্ভার বা গুগল এআই সাময়িকভাবে রেসপন্স করছে না (HTTP ' + response.status + ')।';
           } else if (response.status === 429) {
             errorMsg = 'এআই কোটা সীমা (Rate Limit 429) শেষ হয়েছে। অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করে পুনরায় চেষ্টা করুন।';
           }
@@ -649,7 +727,8 @@ export default function App() {
 
   return (
     <MusicPlayerProvider>
-      <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased">
+      <MiniBrowserProvider>
+        <div className="flex h-screen w-full overflow-hidden bg-white dark:bg-stone-950 text-stone-900 dark:text-stone-100 antialiased">
         {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
@@ -1089,9 +1168,13 @@ export default function App() {
         onOpenShareModal={handleOpenShareModal}
       />
 
+      {/* In-App Mini Google Web Browser & Music Player Modal */}
+      <MiniGoogleBrowserModal />
+
       {/* PWA Offline Indicator */}
       <OfflineIndicator />
     </div>
+    </MiniBrowserProvider>
   </MusicPlayerProvider>
   );
 }

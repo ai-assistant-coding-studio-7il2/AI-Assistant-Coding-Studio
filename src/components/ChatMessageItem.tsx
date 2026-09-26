@@ -28,9 +28,12 @@ import {
   Share2,
   Search,
   HelpCircle,
-  Maximize2
+  Maximize2,
+  ChevronDown,
+  Languages
 } from 'lucide-react';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { ChatMessage, GroundingChunk } from '../types';
 
 interface ChatMessageItemProps {
@@ -204,8 +207,27 @@ const YouTubeEmbedCard: React.FC<{
   const [copied, setCopied] = useState(false);
   const [showTroubleshoot, setShowTroubleshoot] = useState(false);
   const [useNoCookie, setUseNoCookie] = useState(false);
+  const [fetchedMeta, setFetchedMeta] = useState<{ title?: string; author?: string } | null>(null);
 
   const musicPlayer = useMusicPlayer();
+  const miniBrowser = useMiniBrowser();
+
+  useEffect(() => {
+    let active = true;
+    const fetchMeta = async () => {
+      try {
+        const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+        if (res.ok) {
+          const data = await res.json();
+          if (active && data && data.title) {
+            setFetchedMeta({ title: data.title, author: data.author_name });
+          }
+        }
+      } catch (_) {}
+    };
+    fetchMeta();
+    return () => { active = false; };
+  }, [videoId]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(href);
@@ -213,27 +235,36 @@ const YouTubeEmbedCard: React.FC<{
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const cleanTitle = React.Children.toArray(title)
+  const rawTitleString = React.Children.toArray(title)
     .map((c) => (typeof c === 'string' ? c : ''))
     .join('')
-    .trim() || 'ভিডিও / গান';
+    .trim();
+
+  const isRawUrlOrGeneric = !rawTitleString || 
+    rawTitleString.startsWith('http') || 
+    rawTitleString.includes('youtu') ||
+    rawTitleString === 'ভিডিও / গান' ||
+    rawTitleString === 'ইউটিউব গান / ভিডিও';
+
+  const displayTitle = fetchedMeta?.title || (isRawUrlOrGeneric ? 'ইউটিউব গান / ভিডিও' : rawTitleString);
+  const displayAuthor = fetchedMeta?.author;
 
   const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(cleanTitle)}`;
-  const musicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(cleanTitle)}`;
+  const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(displayTitle)}`;
+  const musicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(displayTitle)}`;
 
   const embedHost = useNoCookie ? 'www.youtube-nocookie.com' : 'www.youtube.com';
   const embedUrl = `https://${embedHost}/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`;
 
   const handleOpenFullscreenPlayer = () => {
-    musicPlayer.playVideoId(videoId, cleanTitle, {
+    musicPlayer.playVideoId(videoId, displayTitle, {
       autoPlay: true,
       startMinimized: false,
     });
   };
 
   const handleOpenBackgroundPlayer = () => {
-    musicPlayer.playVideoId(videoId, cleanTitle, {
+    musicPlayer.playVideoId(videoId, displayTitle, {
       autoPlay: true,
       startMinimized: true,
     });
@@ -249,11 +280,26 @@ const YouTubeEmbedCard: React.FC<{
           </span>
           <span className="font-semibold text-stone-200 truncate flex items-center gap-1.5">
             <Music className="w-3.5 h-3.5 text-red-400 shrink-0" />
-            <span className="truncate">{title || 'ইউটিউব গান / ভিডিও'}</span>
+            <span className="truncate">{displayTitle}</span>
+            {displayAuthor && (
+              <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-stone-800 text-[10px] text-stone-400 font-normal shrink-0 border border-stone-700/60">
+                {displayAuthor}
+              </span>
+            )}
           </span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => miniBrowser.openYouTubeInBrowser(videoId, displayTitle, href)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 text-white font-semibold text-[11px] transition-all shadow-xs cursor-pointer"
+            title="আমাদের অ্যাপের ভেতরে মিনি গুগল ব্রাউজারে গানটি শুনুন ও লিরিক্স দেখুন"
+          >
+            <Globe className="w-3 h-3" />
+            <span>মিনি ব্রাউজার</span>
+          </button>
+
           <button
             type="button"
             onClick={handleOpenFullscreenPlayer}
@@ -268,7 +314,7 @@ const YouTubeEmbedCard: React.FC<{
             type="button"
             onClick={handleCopyLink}
             title="শেয়ার লিংক কপি করুন"
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors text-[11px] cursor-pointer"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-stone-800 hover:bg-stone-750 text-stone-300 hover:text-white transition-colors text-[11px] cursor-pointer"
           >
             {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
           </button>
@@ -303,6 +349,17 @@ const YouTubeEmbedCard: React.FC<{
       <div className="p-3 bg-stone-900 border-t border-stone-800 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
+            {/* Primary: In-App Mini Google Web Browser */}
+            <button
+              type="button"
+              onClick={() => miniBrowser.openYouTubeInBrowser(videoId, displayTitle, href)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:brightness-110 text-white text-xs font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer"
+              title="আমাদের অ্যাপের ভেতরে মিনি গুগল ওয়েব ব্রাউজারে গানটি চালান ও লিরিক্স দেখুন"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>মিনি গুগল ওয়েবে চালান</span>
+            </button>
+
             <button
               type="button"
               onClick={handleOpenFullscreenPlayer}
@@ -368,22 +425,38 @@ const YouTubeEmbedCard: React.FC<{
 
         {/* Informative explanation of why YouTube embeds fail and how to solve */}
         {showTroubleshoot && (
-          <div className="p-3 rounded-xl bg-stone-950/90 border border-stone-800 text-xs text-stone-300 space-y-1.5 leading-relaxed animate-in fade-in">
+          <div className="p-3.5 rounded-xl bg-stone-950/90 border border-stone-800 text-xs text-stone-300 space-y-2 leading-relaxed animate-in fade-in">
             <div className="flex items-center gap-1.5 text-amber-400 font-semibold">
               <AlertCircle className="w-3.5 h-3.5" />
-              <span>ভিডিও প্লে না হওয়ার কারণ ও সহজ সমাধান:</span>
+              <span>ভিডিও প্লে না হওয়ার কারণ ও সমাধান:</span>
             </div>
             <ul className="list-disc pl-4 space-y-1 text-stone-400 text-[11px]">
               <li>
                 <strong className="text-stone-200">কপিরাইট ও চ্যানেল বিধিনিষেধ (Error 150/101):</strong> অনেক অফিশিয়াল মিউজিক লেবেল (যেমন T-Series, Sony, VEVO বা শিল্পীদের চ্যানেল) অন্য ওয়েবসাইটে সরাসরি প্লেব্যাক বন্ধ রাখে।
               </li>
               <li>
-                <strong className="text-stone-200">কাল্পনিক বা পুরোনো ভিডিও আইডি:</strong> এআই কখনো কখনো সার্চ ছাড়াই পুরোনো বা কাল্পনিক আইডি দিলে ইউটিউব "Video unavailable" দেখায়।
-              </li>
-              <li>
-                <strong className="text-stone-200">সমাধান:</strong> উপরের <span className="text-red-400 font-semibold">"সরাসরি YouTube এ চালান"</span> অথবা <span className="text-red-400 font-semibold">"ইউটিউবে সার্চ করুন"</span> বোতামে ক্লিক করলে আসল ভিডিওটি ইউটিউব অ্যাপ বা ব্রাউজারে সাথে সাথে কোনো বাধা ছাড়াই চলবে।
+                <strong className="text-stone-200">সহজ সমাধান:</strong> নিচের <span className="text-blue-400 font-semibold">"মিনি গুগল ওয়েবে চালান"</span> বোতামে ক্লিক করলে অ্যাপের ভেতরেই গানটি লিরিক্স সহ চলবে, অথবা <span className="text-red-400 font-semibold">"সরাসরি YouTube এ চালান"</span> বোতামে ক্লিক করলে কোনো বাধা ছাড়াই ভিডিওটি বাজবে।
               </li>
             </ul>
+            <div className="pt-1 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => miniBrowser.openYouTubeInBrowser(videoId, displayTitle, href)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>মিনি গুগল ওয়েব ব্রাউজারে খুলুন</span>
+              </button>
+              <a
+                href={watchUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-xs transition-colors"
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>সরাসরি YouTube এ খুলুন</span>
+              </a>
+            </div>
           </div>
         )}
       </div>
@@ -427,6 +500,99 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   const currentChunkIndexRef = useRef<number>(0);
   const isCancelledRef = useRef<boolean>(false);
   const keepAliveIntervalRef = useRef<any>(null);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const chunkWatchdogRef = useRef<any>(null);
+
+  // Available Browser Speech Voices & Selection
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string>(() => {
+    try {
+      return localStorage.getItem('ai_preferred_tts_voice') || 'auto';
+    } catch {
+      return 'auto';
+    }
+  });
+  const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
+  const voiceMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const loadVoices = () => {
+        const v = window.speechSynthesis.getVoices();
+        if (v && v.length > 0) {
+          setAvailableVoices(v);
+        }
+      };
+      loadVoices();
+      window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (voiceMenuRef.current && !voiceMenuRef.current.contains(e.target as Node)) {
+        setIsVoiceMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const formatVoiceName = (rawName: string) => {
+    return rawName
+      .replace(/Microsoft\s*/gi, '')
+      .replace(/Google\s*/gi, '')
+      .replace(/Online\s*\(Natural\)\s*-?\s*/gi, '')
+      .replace(/Desktop\s*/gi, '')
+      .replace(/\(Bangladesh\)/gi, 'বাংলা (BD)')
+      .replace(/\(India\)/gi, 'বাংলা (IN)')
+      .trim() || rawName;
+  };
+
+  const bengaliVoices = availableVoices.filter(
+    (v) =>
+      v.lang.toLowerCase().startsWith('bn') ||
+      v.name.toLowerCase().includes('bangla') ||
+      v.name.toLowerCase().includes('bengali')
+  );
+
+  const englishVoices = availableVoices.filter(
+    (v) =>
+      v.lang.toLowerCase().startsWith('en') &&
+      !bengaliVoices.some((b) => b.voiceURI === v.voiceURI)
+  );
+
+  const currentSelectedVoice = availableVoices.find(
+    (v) => v.voiceURI === selectedVoiceURI || v.name === selectedVoiceURI
+  );
+
+  const currentVoiceLabel = selectedVoiceURI === 'auto'
+    ? 'স্বয়ংক্রিয়'
+    : currentSelectedVoice
+    ? formatVoiceName(currentSelectedVoice.name)
+    : 'কণ্ঠ';
+
+  const handleVoiceSelect = (voiceURI: string) => {
+    setSelectedVoiceURI(voiceURI);
+    setIsVoiceMenuOpen(false);
+    try {
+      localStorage.setItem('ai_preferred_tts_voice', voiceURI);
+    } catch {}
+
+    if (isSpeaking) {
+      isCancelledRef.current = true;
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      setTimeout(() => {
+        isCancelledRef.current = false;
+        playChunkAt(currentChunkIndexRef.current, speechSpeed, voiceURI);
+      }, 50);
+    }
+  };
 
   useEffect(() => {
     setEditText(message.text);
@@ -453,41 +619,52 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Auto-format bare YouTube URLs (watch?v=, youtu.be/, shorts/, embed/) into markdown links
+  // so that react-markdown automatically renders them as rich in-app YouTube player cards
+  const autoFormatYouTubeLinks = (rawText: string): string => {
+    if (!rawText) return '';
+    return rawText.replace(
+      /(?<!\]\(|href=["'])(https?:\/\/(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?(?:[^\s)]*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)[a-zA-Z0-9_-]{11}[^\s<>"')]*)/gi,
+      (match) => `[ইউটিউব গান / ভিডিও](${match})`
+    );
+  };
+
   // Clean text for text-to-speech (remove markdown syntax, codeblocks, links)
   const cleanTextForSpeech = (rawText: string) => {
     return rawText
       .replace(/```[\s\S]*?```/g, ' কোড ব্লক বাদ দেওয়া হয়েছে। ')
       .replace(/`([^`]+)`/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/https?:\/\/[^\s)]+/g, ' ')
       .replace(/!\[([^\]]*)\]\([^)]+\)/g, '')
       .replace(/[*_~#]/g, '')
       .replace(/>\s+/g, '')
       .replace(/\|[^\n]+\|/g, ' ')
-      .replace(/\n+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
   };
 
-  // Split long text into natural sentence-sized chunks to prevent Web Speech API timeouts
+  // Split long text into natural sentence-sized chunks (~70-90 chars) to prevent Web Speech API 15-second browser cutoffs
   const splitTextIntoSpeechChunks = (text: string): string[] => {
-    // Split by Bengali dāri (।), exclamation (!), question (?), period (.), or newlines
-    const rawSegments = text.match(/[^।?!.\n\r]+[।?!.\n\r]*/g) || [text];
+    // Split by Bengali dāri (।), exclamation (!), question (?), period (.), commas (,), or newlines
+    const rawSegments = text.match(/[^।?!.,;\n\r]+[।?!.,;\n\r]*/g) || [text];
     const chunks: string[] = [];
     let current = '';
 
     for (const segment of rawSegments) {
       const trimmed = segment.trim();
       if (!trimmed) continue;
-      if (current.length + trimmed.length <= 160) {
+      if (current.length + trimmed.length <= 85) {
         current = current ? `${current} ${trimmed}` : trimmed;
       } else {
         if (current) chunks.push(current);
-        if (trimmed.length > 160) {
-          // Break oversized sentences by commas or word boundaries
-          const words = trimmed.split(/([,\s]+)/);
+        if (trimmed.length > 85) {
+          // Break oversized segments by words
+          const words = trimmed.split(/\s+/);
           let sub = '';
           for (const w of words) {
-            if (sub.length + w.length <= 160) {
-              sub += w;
+            if (sub.length + w.length <= 85) {
+              sub = sub ? `${sub} ${w}` : w;
             } else {
               if (sub.trim()) chunks.push(sub.trim());
               sub = w;
@@ -508,25 +685,37 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       clearInterval(keepAliveIntervalRef.current);
       keepAliveIntervalRef.current = null;
     }
+    if (chunkWatchdogRef.current) {
+      clearTimeout(chunkWatchdogRef.current);
+      chunkWatchdogRef.current = null;
+    }
   };
 
   const startKeepAlive = () => {
     stopKeepAlive();
-    // In Chromium, SpeechSynthesis pauses unexpectedly on long playback.
-    // Poking pause and resume every 10 seconds keeps the audio engine active.
+    // In Chromium (Chrome/Edge), SpeechSynthesis has an internal 15-second bug where it pauses unexpectedly.
+    // Calling pause() and resume() with a micro-delay every 6 seconds keeps the browser audio worker alive continuously.
     keepAliveIntervalRef.current = setInterval(() => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
           window.speechSynthesis.pause();
-          window.speechSynthesis.resume();
+          setTimeout(() => {
+            if (!isCancelledRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.paused) {
+              window.speechSynthesis.resume();
+            }
+          }, 25);
         }
       }
-    }, 10000);
+    }, 6000);
   };
 
   const handleStopSpeaking = () => {
     isCancelledRef.current = true;
     stopKeepAlive();
+    activeUtteranceRef.current = null;
+    if ((window as any).__activeSpeechUtterance) {
+      try { delete (window as any).__activeSpeechUtterance; } catch (e) {}
+    }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -536,11 +725,16 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     setTotalChunks(0);
   };
 
-  const playChunkAt = (index: number, speed: number) => {
+  const playChunkAt = (index: number, speed: number, voiceOverride?: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     if (isCancelledRef.current || index >= chunksRef.current.length) {
       handleStopSpeaking();
       return;
+    }
+
+    if (chunkWatchdogRef.current) {
+      clearTimeout(chunkWatchdogRef.current);
+      chunkWatchdogRef.current = null;
     }
 
     currentChunkIndexRef.current = index;
@@ -551,13 +745,31 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     utterance.rate = speed;
     utterance.pitch = 1.0;
 
+    // CRITICAL: Chromium garbage collection bug fix!
+    // Storing utterance in both a React ref and a global window property prevents V8 GC from killing it mid-speech after a few seconds.
+    activeUtteranceRef.current = utterance;
+    (window as any).__activeSpeechUtterance = utterance;
+
     // Detect language and match voice
     const hasBengali = /[\u0980-\u09FF]/.test(chunkText);
-    const availableVoices = window.speechSynthesis.getVoices();
+    const activeVoiceURI = voiceOverride !== undefined ? voiceOverride : selectedVoiceURI;
+    const voices = availableVoices.length > 0
+      ? availableVoices
+      : (typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis.getVoices() : []);
 
-    if (hasBengali) {
+    let chosenVoice: SpeechSynthesisVoice | undefined;
+
+    if (activeVoiceURI !== 'auto') {
+      chosenVoice = voices.find((v) => v.voiceURI === activeVoiceURI || v.name === activeVoiceURI);
+    }
+
+    if (chosenVoice) {
+      utterance.voice = chosenVoice;
+      utterance.lang = chosenVoice.lang;
+      setDetectedVoiceLabel(formatVoiceName(chosenVoice.name));
+    } else if (hasBengali) {
       utterance.lang = 'bn-BD';
-      const bnVoice = availableVoices.find(
+      const bnVoice = voices.find(
         (v) =>
           v.lang.toLowerCase().startsWith('bn') ||
           v.name.toLowerCase().includes('bangla') ||
@@ -565,20 +777,41 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       );
       if (bnVoice) {
         utterance.voice = bnVoice;
-        setDetectedVoiceLabel(bnVoice.name.replace(/Google|Microsoft/gi, '').trim() || 'বাংলা কণ্ঠ');
+        setDetectedVoiceLabel(formatVoiceName(bnVoice.name) || 'বাংলা কণ্ঠ');
       } else {
         setDetectedVoiceLabel('বাংলা কণ্ঠ');
       }
     } else {
       utterance.lang = 'en-US';
-      const enVoice = availableVoices.find((v) => v.lang.toLowerCase().startsWith('en'));
+      const enVoice = voices.find((v) => v.lang.toLowerCase().startsWith('en'));
       if (enVoice) {
         utterance.voice = enVoice;
-        setDetectedVoiceLabel(enVoice.name.replace(/Google|Microsoft/gi, '').trim() || 'English');
+        setDetectedVoiceLabel(formatVoiceName(enVoice.name) || 'English');
       } else {
         setDetectedVoiceLabel('English');
       }
     }
+
+    let chunkHandled = false;
+    const advanceNext = () => {
+      if (chunkHandled || isCancelledRef.current) return;
+      chunkHandled = true;
+      if (chunkWatchdogRef.current) {
+        clearTimeout(chunkWatchdogRef.current);
+        chunkWatchdogRef.current = null;
+      }
+      const nextIndex = index + 1;
+      if (nextIndex < chunksRef.current.length) {
+        // Subtle 30ms gap between chunks for natural human rhythm
+        setTimeout(() => {
+          if (!isCancelledRef.current) {
+            playChunkAt(nextIndex, speed, voiceOverride);
+          }
+        }, 30);
+      } else {
+        handleStopSpeaking();
+      }
+    };
 
     utterance.onstart = () => {
       setIsSpeaking(true);
@@ -586,24 +819,39 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     };
 
     utterance.onend = () => {
-      if (isCancelledRef.current) return;
-      const nextIndex = index + 1;
-      if (nextIndex < chunksRef.current.length) {
-        playChunkAt(nextIndex, speed);
-      } else {
-        handleStopSpeaking();
-      }
+      advanceNext();
     };
 
     utterance.onerror = (e) => {
-      if (e.error !== 'interrupted' && e.error !== 'canceled') {
-        console.warn('Speech synthesis error event:', e);
-      }
       if (isCancelledRef.current) return;
-      handleStopSpeaking();
+      // Do not abort whole playback on minor interrupt/pause warning
+      if (e.error !== 'interrupted' && e.error !== 'canceled') {
+        console.warn('Speech synthesis minor chunk issue:', e.error);
+      }
+      advanceNext();
     };
 
-    window.speechSynthesis.speak(utterance);
+    // Watchdog timer: If a chunk is unexpectedly silent or stalled for more than 10s, force advance
+    chunkWatchdogRef.current = setTimeout(() => {
+      if (!chunkHandled && !isCancelledRef.current) {
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        } else {
+          advanceNext();
+        }
+      }
+    }, 10000);
+
+    try {
+      window.speechSynthesis.speak(utterance);
+      // If speechSynthesis was left paused from another process, resume it immediately
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    } catch (err) {
+      console.warn('speechSynthesis.speak error:', err);
+      advanceNext();
+    }
   };
 
   const handleStartSpeaking = (targetSpeed?: number) => {
@@ -907,7 +1155,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           ) : (
             <div className="text-sm prose-stone dark:prose-invert max-w-none break-words">
               <Markdown components={MarkdownComponents}>
-                {message.text}
+                {autoFormatYouTubeLinks(message.text)}
               </Markdown>
             </div>
           )}
@@ -1029,9 +1277,9 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                 )}
               </button>
 
-              {/* Text to Speech Button & Speed Selector */}
+              {/* Text to Speech Button, Voice & Speed Selector */}
               {!isSpeaking ? (
-                <div className="flex items-center gap-1 rounded-lg p-0.5 bg-stone-100/80 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-750">
+                <div className="relative flex items-center gap-1 rounded-lg p-0.5 bg-stone-100/80 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-750">
                   <button
                     id={`ai-speak-btn-${message.id}`}
                     onClick={() => handleStartSpeaking()}
@@ -1041,6 +1289,135 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                     <Volume2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     <span>পড়ে শোনান</span>
                   </button>
+
+                  {/* Voice Selector Dropdown */}
+                  <div className="relative" ref={voiceMenuRef}>
+                    <button
+                      type="button"
+                      id={`ai-voice-select-btn-${message.id}`}
+                      onClick={() => setIsVoiceMenuOpen(!isVoiceMenuOpen)}
+                      title="পড়ার কণ্ঠ ও ভাষা নির্বাচন করুন (Google বাংলা, English ইত্যাদি)"
+                      className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded transition-all border-l border-stone-200 dark:border-stone-700 cursor-pointer ${
+                        isVoiceMenuOpen || selectedVoiceURI !== 'auto'
+                          ? 'bg-white dark:bg-stone-900 text-emerald-600 dark:text-emerald-400 font-bold shadow-2xs'
+                          : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-200/60 dark:hover:bg-stone-700/50'
+                      }`}
+                    >
+                      <Languages className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="max-w-[70px] sm:max-w-[85px] truncate">{currentVoiceLabel}</span>
+                      <ChevronDown className={`w-2.5 h-2.5 transition-transform opacity-70 ${isVoiceMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Voice Menu Dropdown Panel */}
+                    {isVoiceMenuOpen && (
+                      <div className="absolute bottom-full mb-1.5 left-0 z-50 w-72 max-h-72 overflow-y-auto rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-750 shadow-2xl p-1.5 text-xs animate-in fade-in zoom-in-95 duration-150">
+                        <div className="px-2 py-1.5 border-b border-stone-100 dark:border-stone-800 text-[11px] font-semibold text-stone-500 dark:text-stone-400 flex items-center justify-between">
+                          <span>ভয়েস / কণ্ঠ নির্বাচন</span>
+                          <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">
+                            {availableVoices.length > 0 ? `${availableVoices.length} টি কণ্ঠ` : 'স্বয়ংক্রিয়'}
+                          </span>
+                        </div>
+
+                        {/* Auto detect option */}
+                        <div className="py-1">
+                          <button
+                            type="button"
+                            onClick={() => handleVoiceSelect('auto')}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                              selectedVoiceURI === 'auto'
+                                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-medium'
+                                : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span className="font-semibold">স্বয়ংক্রিয় (Auto Detect)</span>
+                              </div>
+                              <p className="text-[10px] text-stone-500 dark:text-stone-400 pl-5">
+                                লেখা অনুযায়ী বাংলা বা ইংরেজি স্বয়ংক্রিয় কণ্ঠ
+                              </p>
+                            </div>
+                            {selectedVoiceURI === 'auto' && (
+                              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Bengali Voices Section */}
+                        <div className="pt-1 border-t border-stone-100 dark:border-stone-800">
+                          <div className="px-2 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                            <span>🇧🇩 বাংলা কণ্ঠ ({bengaliVoices.length})</span>
+                          </div>
+                          {bengaliVoices.length > 0 ? (
+                            bengaliVoices.map((voice) => {
+                              const isSelected = selectedVoiceURI === voice.voiceURI || selectedVoiceURI === voice.name;
+                              return (
+                                <button
+                                  key={voice.voiceURI || voice.name}
+                                  type="button"
+                                  onClick={() => handleVoiceSelect(voice.voiceURI || voice.name)}
+                                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-medium'
+                                      : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                                  }`}
+                                >
+                                  <div className="truncate pr-2">
+                                    <span className="font-medium text-stone-800 dark:text-stone-200">
+                                      {voice.name}
+                                    </span>
+                                    <span className="ml-1 text-[10px] text-stone-400 font-mono">({voice.lang})</span>
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <p className="px-2.5 py-1 text-[10px] text-stone-400 italic">
+                              ব্রাউজারে আলাদা বাংলা ভয়েস নেই (স্বয়ংক্রিয় মোড ব্যবহার করুন)
+                            </p>
+                          )}
+                        </div>
+
+                        {/* English Voices Section */}
+                        {englishVoices.length > 0 && (
+                          <div className="pt-1.5 border-t border-stone-100 dark:border-stone-800">
+                            <div className="px-2 py-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                              🌐 ইংরেজি কণ্ঠ (English - {englishVoices.length})
+                            </div>
+                            {englishVoices.slice(0, 15).map((voice) => {
+                              const isSelected = selectedVoiceURI === voice.voiceURI || selectedVoiceURI === voice.name;
+                              return (
+                                <button
+                                  key={voice.voiceURI || voice.name}
+                                  type="button"
+                                  onClick={() => handleVoiceSelect(voice.voiceURI || voice.name)}
+                                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-medium'
+                                      : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                                  }`}
+                                >
+                                  <div className="truncate pr-2">
+                                    <span className="font-medium text-stone-800 dark:text-stone-200">
+                                      {voice.name}
+                                    </span>
+                                    <span className="ml-1 text-[10px] text-stone-400 font-mono">({voice.lang})</span>
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   {/* Playback Speed Selector (0.75x, 1x, 1.25x, 1.5x, 2x) */}
                   <div 
@@ -1069,7 +1446,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                 </div>
               ) : (
                 /* Active Audio Playback Bar */
-                <div className="flex items-center gap-2 rounded-xl px-2.5 py-1.5 bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300/80 dark:border-emerald-700/70 text-xs shadow-xs animate-in fade-in duration-200 flex-wrap">
+                <div className="relative flex items-center gap-2 rounded-xl px-2.5 py-1.5 bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300/80 dark:border-emerald-700/70 text-xs shadow-xs animate-in fade-in duration-200 flex-wrap">
                   {/* Visual Audio Wave & Status */}
                   <div className="flex items-center gap-2 pr-1.5 border-r border-emerald-200 dark:border-emerald-800">
                     <span className="flex items-center gap-0.5 h-3.5" title={isPaused ? 'পজ রয়েছে' : 'ভয়েস চলছে'}>
@@ -1140,14 +1517,123 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                     })}
                   </div>
 
-                  {detectedVoiceLabel && (
-                    <span 
-                      className="hidden sm:inline text-[10px] text-emerald-700/80 dark:text-emerald-300/80 pl-1 border-l border-emerald-200 dark:border-emerald-800 truncate max-w-[120px]" 
-                      title={`ভয়েস: ${detectedVoiceLabel}`}
+                  {/* Voice Switcher in Active Bar */}
+                  <div className="relative" ref={voiceMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsVoiceMenuOpen(!isVoiceMenuOpen)}
+                      title={`কণ্ঠ পরিবর্তন করুন (বর্তমান: ${detectedVoiceLabel || currentVoiceLabel})`}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100/80 hover:bg-emerald-200 dark:bg-emerald-900/60 dark:hover:bg-emerald-800 text-emerald-900 dark:text-emerald-200 border border-emerald-300/60 dark:border-emerald-700/60 transition-colors cursor-pointer"
                     >
-                      {detectedVoiceLabel}
-                    </span>
-                  )}
+                      <Languages className="w-3 h-3 text-emerald-700 dark:text-emerald-300 shrink-0" />
+                      <span className="max-w-[80px] sm:max-w-[100px] truncate">{detectedVoiceLabel || currentVoiceLabel}</span>
+                      <ChevronDown className={`w-2.5 h-2.5 transition-transform opacity-70 ${isVoiceMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isVoiceMenuOpen && (
+                      <div className="absolute bottom-full mb-1.5 right-0 z-50 w-72 max-h-72 overflow-y-auto rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-750 shadow-2xl p-1.5 text-xs animate-in fade-in zoom-in-95 duration-150">
+                        <div className="px-2 py-1.5 border-b border-stone-100 dark:border-stone-800 text-[11px] font-semibold text-stone-500 dark:text-stone-400 flex items-center justify-between">
+                          <span>ভয়েস পরিবর্তন করুন</span>
+                          <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">
+                            {availableVoices.length > 0 ? `${availableVoices.length} টি কণ্ঠ` : 'স্বয়ংক্রিয়'}
+                          </span>
+                        </div>
+
+                        {/* Auto detect */}
+                        <div className="py-1">
+                          <button
+                            type="button"
+                            onClick={() => handleVoiceSelect('auto')}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                              selectedVoiceURI === 'auto'
+                                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-medium'
+                                : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span className="font-semibold">স্বয়ংক্রিয় (Auto Detect)</span>
+                            </div>
+                            {selectedVoiceURI === 'auto' && (
+                              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Bengali Voices */}
+                        <div className="pt-1 border-t border-stone-100 dark:border-stone-800">
+                          <div className="px-2 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                            🇧🇩 বাংলা কণ্ঠ ({bengaliVoices.length})
+                          </div>
+                          {bengaliVoices.length > 0 ? (
+                            bengaliVoices.map((voice) => {
+                              const isSelected = selectedVoiceURI === voice.voiceURI || selectedVoiceURI === voice.name;
+                              return (
+                                <button
+                                  key={voice.voiceURI || voice.name}
+                                  type="button"
+                                  onClick={() => handleVoiceSelect(voice.voiceURI || voice.name)}
+                                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-medium'
+                                      : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                                  }`}
+                                >
+                                  <div className="truncate pr-2">
+                                    <span className="font-medium text-stone-800 dark:text-stone-200">
+                                      {voice.name}
+                                    </span>
+                                    <span className="ml-1 text-[10px] text-stone-400 font-mono">({voice.lang})</span>
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <p className="px-2.5 py-1 text-[10px] text-stone-400 italic">
+                              আলাদা বাংলা কণ্ঠ পাওয়া যায়নি
+                            </p>
+                          )}
+                        </div>
+
+                        {/* English Voices */}
+                        {englishVoices.length > 0 && (
+                          <div className="pt-1.5 border-t border-stone-100 dark:border-stone-800">
+                            <div className="px-2 py-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                              🌐 ইংরেজি কণ্ঠ (English - {englishVoices.length})
+                            </div>
+                            {englishVoices.slice(0, 15).map((voice) => {
+                              const isSelected = selectedVoiceURI === voice.voiceURI || selectedVoiceURI === voice.name;
+                              return (
+                                <button
+                                  key={voice.voiceURI || voice.name}
+                                  type="button"
+                                  onClick={() => handleVoiceSelect(voice.voiceURI || voice.name)}
+                                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-medium'
+                                      : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                                  }`}
+                                >
+                                  <div className="truncate pr-2">
+                                    <span className="font-medium text-stone-800 dark:text-stone-200">
+                                      {voice.name}
+                                    </span>
+                                    <span className="ml-1 text-[10px] text-stone-400 font-mono">({voice.lang})</span>
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

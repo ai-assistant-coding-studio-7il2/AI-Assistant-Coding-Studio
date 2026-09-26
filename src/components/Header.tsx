@@ -29,6 +29,7 @@ import { PWAInstallButton } from './PWAInstallButton';
 import { AppLogo } from './AppLogo';
 import { UserAuthButton } from './UserAuthButton';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { useMiniBrowser } from '../context/MiniBrowserContext';
 
 interface HeaderProps {
   onToggleSidebar: () => void;

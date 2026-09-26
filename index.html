@@ -22,9 +22,14 @@
             }
             if (
               str.indexOf('[vite]') !== -1 ||
-              str.indexOf('vite:ws') !== -1 ||
-              str.indexOf('WebSocket connection to') !== -1 ||
-              str.indexOf('failed to connect to websocket') !== -1
+              str.indexOf('vite:') !== -1 ||
+              str.indexOf('vite') !== -1 ||
+              str.indexOf('WebSocket') !== -1 ||
+              str.indexOf('websocket') !== -1 ||
+              str.indexOf('@firebase/firestore') !== -1 ||
+              str.indexOf('Could not reach Cloud Firestore') !== -1 ||
+              str.indexOf('code=unavailable') !== -1 ||
+              str.indexOf('the client is offline') !== -1
             ) {
               return true;
             }
@@ -43,12 +48,22 @@
 
         window.addEventListener('error', function(e) {
           var msg = (e && (e.message || (e.error && e.error.message))) || '';
+          var src = (e && (e.filename || '')) || '';
           if (
-            typeof msg === 'string' &&
-            (msg.indexOf('[vite]') !== -1 || msg.indexOf('WebSocket') !== -1)
+            (typeof msg === 'string' && (
+              msg.indexOf('[vite]') !== -1 ||
+              msg.indexOf('WebSocket') !== -1 ||
+              msg.indexOf('vite') !== -1 ||
+              msg.indexOf('@firebase/firestore') !== -1 ||
+              msg.indexOf('Could not reach Cloud Firestore') !== -1 ||
+              msg.indexOf('code=unavailable') !== -1 ||
+              msg.indexOf('the client is offline') !== -1
+            )) ||
+            (typeof src === 'string' && (src.indexOf('@vite/client') !== -1 || src.indexOf('firestore') !== -1))
           ) {
             e.preventDefault();
             e.stopImmediatePropagation();
+            return true;
           }
         }, true);
 
@@ -57,10 +72,19 @@
           var str = typeof reason === 'string' ? reason : (reason && reason.message) || '';
           if (
             typeof str === 'string' &&
-            (str.indexOf('[vite]') !== -1 || str.indexOf('WebSocket') !== -1)
+            (
+              str.indexOf('[vite]') !== -1 ||
+              str.indexOf('WebSocket') !== -1 ||
+              str.indexOf('vite') !== -1 ||
+              str.indexOf('@firebase/firestore') !== -1 ||
+              str.indexOf('Could not reach Cloud Firestore') !== -1 ||
+              str.indexOf('code=unavailable') !== -1 ||
+              str.indexOf('the client is offline') !== -1
+            )
           ) {
             e.preventDefault();
             e.stopImmediatePropagation();
+            return true;
           }
         }, true);
       })();

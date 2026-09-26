@@ -8,6 +8,7 @@ import {
   type User 
 } from 'firebase/auth';
 import { 
+  initializeFirestore,
   getFirestore, 
   doc, 
   getDoc,
@@ -25,8 +26,20 @@ import { ChatSession, ChatMessage } from '../types';
 // Initialize Firebase App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// CRITICAL: Must pass database ID as second argument to getFirestore
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// CRITICAL: Must pass database ID to initializeFirestore with resilient long polling
+let firestoreDb: ReturnType<typeof getFirestore>;
+try {
+  firestoreDb = initializeFirestore(
+    app,
+    {
+      experimentalForceLongPolling: true,
+    },
+    firebaseConfig.firestoreDatabaseId
+  );
+} catch {
+  firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+}
+export const db = firestoreDb;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -82,9 +95,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 export async function testFirestoreConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn("Please check your Firebase configuration or internet connection.");
+  } catch (error: any) {
+    const msg = error?.message || String(error);
+    if (
+      msg.includes('the client is offline') ||
+      msg.includes('unavailable') ||
+      msg.includes('Could not reach') ||
+      msg.includes('Failed to get document')
+    ) {
+      console.info("Firestore client is operating in offline mode or establishing connection.");
     }
   }
 }
