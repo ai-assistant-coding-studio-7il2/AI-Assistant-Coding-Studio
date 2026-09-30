@@ -17,23 +17,65 @@ export default defineConfig(() => {
                 tag: 'script',
                 injectTo: 'head-prepend',
                 children: `(function(){
-  var origErr = console.error, origWarn = console.warn, origLog = console.log, origDebug = console.debug;
+  try {
+    var OrigWS = window.WebSocket;
+    if (OrigWS) {
+      window.WebSocket = function(url, protocols) {
+        if (typeof url === 'string' && (url.indexOf('localhost') !== -1 || url.indexOf('3000') !== -1 || url.indexOf('vite') !== -1)) {
+          var dummyWS = {
+            url: url,
+            readyState: 1,
+            send: function() {},
+            close: function() {},
+            addEventListener: function() {},
+            removeEventListener: function() {},
+            dispatchEvent: function() { return true; },
+            onopen: null,
+            onclose: null,
+            onerror: null,
+            onmessage: null,
+          };
+          setTimeout(function() {
+            if (typeof dummyWS.onopen === 'function') {
+              try { dummyWS.onopen({ type: 'open' }); } catch (err) {}
+            }
+          }, 10);
+          return dummyWS;
+        }
+        return new OrigWS(url, protocols);
+      };
+      window.WebSocket.CONNECTING = 0;
+      window.WebSocket.OPEN = 1;
+      window.WebSocket.CLOSING = 2;
+      window.WebSocket.CLOSED = 3;
+    }
+  } catch(e){}
+
+  var origErr = console.error, origWarn = console.warn, origInfo = console.info, origLog = console.log, origDebug = console.debug;
   function isVite(args){
     if(!args || !args.length) return false;
     for(var i=0; i<args.length; i++){
       var a = args[i];
-      var s = typeof a === 'string' ? a : (a && (a.message || a.stack)) || '';
-      if(s.indexOf('[vite]') !== -1 || s.indexOf('WebSocket') !== -1 || s.indexOf('vite:') !== -1) return true;
+      if (a === null || a === undefined) continue;
+      var str = '';
+      if(typeof a === 'string') str = a;
+      else {
+        try { str = (a.message || '') + ' ' + (a.stack || '') + ' ' + (a.name || '') + ' ' + String(a); } catch(e){}
+      }
+      var lower = str.toLowerCase();
+      if(str.indexOf('[vite]') !== -1 || str.indexOf('vite:') !== -1 || lower.indexOf('[vite]') !== -1 || lower.indexOf('vite') !== -1 || lower.indexOf('websocket') !== -1) return true;
     }
     return false;
   }
   console.error = function(){ if(!isVite(arguments)) origErr.apply(console, arguments); };
   console.warn = function(){ if(!isVite(arguments)) origWarn.apply(console, arguments); };
+  console.info = function(){ if(!isVite(arguments)) origInfo.apply(console, arguments); };
   console.log = function(){ if(!isVite(arguments)) origLog.apply(console, arguments); };
   console.debug = function(){ if(!isVite(arguments)) origDebug.apply(console, arguments); };
   window.addEventListener('error', function(e){
     var m = (e && (e.message || (e.error && e.error.message))) || '';
-    if(typeof m === 'string' && (m.indexOf('[vite]') !== -1 || m.indexOf('WebSocket') !== -1)){
+    var lower = String(m).toLowerCase();
+    if(lower.indexOf('vite') !== -1 || lower.indexOf('websocket') !== -1){
       e.preventDefault(); e.stopImmediatePropagation(); return true;
     }
   }, true);

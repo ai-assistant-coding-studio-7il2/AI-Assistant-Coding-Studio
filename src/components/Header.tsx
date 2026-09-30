@@ -22,7 +22,8 @@ import {
   Server,
   ShieldCheck,
   Youtube,
-  Bot
+  Bot,
+  HardDrive
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -37,6 +38,7 @@ interface HeaderProps {
   onOpenHostingDiagnostic?: () => void;
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
+  onOpenGoogleDrive?: () => void;
   onNewChat: () => void;
   onClearChat: () => void;
   onExportChat: () => void;
@@ -58,6 +60,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHostingDiagnostic,
   onOpenCitizenServices,
   onOpenFreelanceAgent,
+  onOpenGoogleDrive,
   onNewChat,
   onClearChat,
   onExportChat,
@@ -73,6 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeSessionId,
 }) => {
   const musicPlayer = useMusicPlayer();
+  const miniBrowser = useMiniBrowser();
   const [isShareDropdownOpen, setIsShareDropdownOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -572,6 +576,30 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden md:inline">রিমোট জব এজেন্ট</span>
           </button>
         )}
+
+        {/* Google Drive Workspace button */}
+        {onOpenGoogleDrive && (
+          <button
+            id="google-drive-header-btn"
+            onClick={onOpenGoogleDrive}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/25 transition-all text-xs font-semibold cursor-pointer"
+            title="Google Drive ক্লাউড ফাইল ম্যানেজার ও স্টোরেজ"
+          >
+            <HardDrive className="w-3.5 h-3.5 text-amber-500" />
+            <span className="hidden sm:inline">Google Drive</span>
+          </button>
+        )}
+
+        {/* In-App Mini Google Web Browser button */}
+        <button
+          id="mini-google-browser-header-btn"
+          onClick={() => miniBrowser.openBrowser()}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/25 transition-all text-xs font-semibold cursor-pointer"
+          title="মিনি গুগল ওয়েব ব্রাউজার খুলুন (লাইভ গুগল সার্চ ও ওয়েব মিডিয়া)"
+        >
+          <Globe className="w-3.5 h-3.5 text-blue-500" />
+          <span className="hidden sm:inline">মিনি ব্রাউজার</span>
+        </button>
 
         {/* Quick In-App Music / Video Player button */}
         <button

@@ -47,15 +47,48 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
   const [useNoCookie, setUseNoCookie] = useState(false);
   const [key, setKey] = useState(0); // To allow manual reload/replay
   const [inputLinkOrId, setInputLinkOrId] = useState('');
+  const [alternativeVideos, setAlternativeVideos] = useState<Array<{ videoId: string; title: string; author: string; url: string; thumbnail: string }>>([]);
+  const [isLoadingAlternatives, setIsLoadingAlternatives] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const handlePlayNewInput = (e: React.FormEvent) => {
+  const handlePlayNewInput = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = inputLinkOrId.trim();
     if (!val) return;
 
-    playVideoId(val, 'ইউটিউব মিউজিক স্ট্রিম', { autoPlay: true });
-    setInputLinkOrId('');
+    const detectedId = extractYouTubeVideoId(val);
+    if (detectedId) {
+      playVideoId(detectedId, 'ইউটিউব মিউজিক স্ট্রিম', { autoPlay: true });
+      setInputLinkOrId('');
+      setAlternativeVideos([]);
+      return;
+    }
+
+    // It's a song/music search term: search YouTube directly for verified real links!
+    setIsLoadingAlternatives(true);
+    try {
+      const res = await fetch('/api/youtube/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: val }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.videos) && data.videos.length > 0) {
+          setAlternativeVideos(data.videos);
+          // Play the top real video found!
+          const top = data.videos[0];
+          playVideoId(top.videoId, top.title, { autoPlay: true, searchQuery: val });
+        } else {
+          playVideoId(val, val, { autoPlay: true, searchQuery: val });
+        }
+      }
+    } catch {
+      playVideoId(val, val, { autoPlay: true, searchQuery: val });
+    } finally {
+      setIsLoadingAlternatives(false);
+      setInputLinkOrId('');
+    }
   };
 
   // Sync fullscreen change events
@@ -120,12 +153,25 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
     }
   };
 
-  const handleFindAlternative = () => {
-    if (onAskAIAboutSong) {
-      minimizePlayer();
-      onAskAIAboutSong(
-        `"${cleanTitle}" গানটির বিকল্প ভিডিও বা অফিশিয়াল অডিও লিংক দিন যাতে কোনো সীমাবদ্ধতা ছাড়া সরাসরি প্লে করা যায়।`
-      );
+  const handleFindAlternative = async () => {
+    setIsLoadingAlternatives(true);
+    try {
+      const res = await fetch('/api/youtube/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: cleanTitle }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.videos) && data.videos.length > 0) {
+          const filtered = data.videos.filter((v: any) => v.videoId !== videoId);
+          setAlternativeVideos(filtered.length > 0 ? filtered : data.videos);
+        }
+      }
+    } catch (e) {
+      console.warn('Alternative search error:', e);
+    } finally {
+      setIsLoadingAlternatives(false);
     }
   };
 
@@ -338,9 +384,90 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
                 onClick={handleFindAlternative}
                 className="px-2.5 py-1.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 text-[11px] font-medium cursor-pointer"
               >
-                বিকল্প অডিও খুঁজুন
+                {isLoadingAlternatives ? 'খোঁজা হচ্ছে...' : 'বিকল্প অডিও খুঁজুন'}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Verified YouTube Alternatives & Search Results Grid */}
+        {!isMinimized && (isLoadingAlternatives || alternativeVideos.length > 0) && (
+          <div className="p-4 rounded-3xl bg-stone-900/90 border border-stone-800 shadow-xl space-y-3">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Youtube className="w-4 h-4 text-red-500" />
+                <h4 className="text-xs sm:text-sm font-bold text-white">
+                  ইউটিউব থেকে আসল ও বিকল্প ভিডিও/গানসমূহ:
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAlternativeVideos([])}
+                className="text-stone-400 hover:text-white text-xs cursor-pointer"
+              >
+                লুকান
+              </button>
+            </div>
+
+            {isLoadingAlternatives ? (
+              <div className="py-6 text-center space-y-2">
+                <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-xs text-stone-400">ইউটিউব থেকে আসল লিংক সংগ্রহ করা হচ্ছে...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                {alternativeVideos.map((alt) => (
+                  <div
+                    key={alt.videoId}
+                    className="flex items-center gap-2.5 p-2 rounded-xl bg-stone-950/80 hover:bg-stone-850 border border-stone-800/80 transition-all group"
+                  >
+                    <div className="relative w-20 h-14 rounded-lg overflow-hidden bg-black shrink-0">
+                      <img
+                        src={alt.thumbnail}
+                        alt={alt.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = `https://img.youtube.com/vi/${alt.videoId}/0.jpg`;
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Play className="w-4 h-4 text-white fill-current" />
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <h5 className="text-xs font-semibold text-white truncate leading-tight" title={alt.title}>
+                        {alt.title}
+                      </h5>
+                      <p className="text-[10px] text-stone-400 truncate">
+                        {alt.author}
+                      </p>
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            playVideoId(alt.videoId, alt.title, { autoPlay: true });
+                          }}
+                          className="px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-medium text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Play className="w-2.5 h-2.5 fill-current" />
+                          <span>চালান</span>
+                        </button>
+                        <a
+                          href={alt.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded bg-stone-800 hover:bg-stone-750 text-stone-400 hover:text-white text-[10px] transition-colors"
+                          title="YouTube এ দেখুন"
+                        >
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

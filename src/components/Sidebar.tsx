@@ -20,7 +20,8 @@ import {
   Share2,
   ShieldCheck,
   PhoneCall,
-  Bot
+  Bot,
+  HardDrive
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -40,6 +41,7 @@ interface SidebarProps {
   onOpenHostingDiagnostic?: () => void;
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
+  onOpenGoogleDrive?: () => void;
   onOpenShare?: (config?: { shareType?: 'app' | 'session' }) => void;
   onSelectMode: (mode: AssistantMode) => void;
   currentMode: AssistantMode;
@@ -58,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenHostingDiagnostic,
   onOpenCitizenServices,
   onOpenFreelanceAgent,
+  onOpenGoogleDrive,
   onOpenShare,
   onSelectMode,
   currentMode,
@@ -354,6 +357,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded-md">
                 ২৪/৭
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Google Drive Workspace Launcher */}
+        {onOpenGoogleDrive && (
+          <div className="px-3 pt-1 pb-1">
+            <button
+              id="sidebar-google-drive-btn"
+              onClick={() => {
+                onOpenGoogleDrive();
+                if (window.innerWidth < 768) onClose();
+              }}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-left transition-all group cursor-pointer shadow-2xs"
+              title="Google Drive ফাইল ম্যানেজার ও ক্লাউড স্টোরেজ"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-amber-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
+                  <HardDrive className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-amber-950 dark:text-amber-200 truncate">
+                    Google Drive
+                  </p>
+                  <p className="text-[10px] text-amber-700/90 dark:text-amber-400/90 truncate">
+                    ক্লাউড ফাইল ব্রাউজ ও ব্যাকআপ
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.5 rounded-md">
+                ড্রাইভ
               </span>
             </button>
           </div>

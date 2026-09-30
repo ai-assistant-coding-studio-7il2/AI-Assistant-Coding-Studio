@@ -16,7 +16,6 @@ import {
   deleteDoc, 
   collection, 
   getDocs, 
-  getDocFromServer,
   query,
   orderBy
 } from 'firebase/firestore';
@@ -26,22 +25,62 @@ import { ChatSession, ChatMessage } from '../types';
 // Initialize Firebase App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// CRITICAL: Must pass database ID to initializeFirestore with resilient long polling
+// CRITICAL: Initialize Firestore with auto-detect long polling for maximum reliability across networks
 let firestoreDb: ReturnType<typeof getFirestore>;
 try {
   firestoreDb = initializeFirestore(
     app,
     {
-      experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: true,
     },
     firebaseConfig.firestoreDatabaseId
   );
 } catch {
-  firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  try {
+    firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  } catch {
+    firestoreDb = getFirestore(app);
+  }
 }
 export const db = firestoreDb;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Google Drive Scopes requested and configured for workspace integration
+export const DRIVE_SCOPES = [
+  'https://www.googleapis.com/auth/drive',
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/drive.appdata',
+  'https://www.googleapis.com/auth/drive.activity',
+  'https://www.googleapis.com/auth/drive.activity.readonly',
+  'https://www.googleapis.com/auth/drive.apps.readonly',
+  'https://www.googleapis.com/auth/drive.install',
+  'https://www.googleapis.com/auth/drive.meet.readonly',
+  'https://www.googleapis.com/auth/drive.metadata',
+  'https://www.googleapis.com/auth/drive.photos.readonly',
+  'https://www.googleapis.com/auth/drive.scripts',
+];
+
+// Add Drive scopes to the Google Auth Provider
+DRIVE_SCOPES.forEach((scope) => {
+  googleProvider.addScope(scope);
+});
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
+
+// MANDATORY per SKILL.md: In-memory cache for OAuth access token (NO localStorage / sessionStorage)
+let cachedAccessToken: string | null = null;
+
+export function getCachedAccessToken(): string | null {
+  return cachedAccessToken;
+}
+
+export function setCachedAccessToken(token: string | null): void {
+  cachedAccessToken = token;
+}
 
 // Standard Firestore Error Handling conforming strictly to Firebase Skill requirements
 export enum OperationType {
@@ -91,10 +130,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-// Connection check on boot
+// Graceful connection status helper
 export async function testFirestoreConnection() {
+  if (!auth.currentUser) {
+    return;
+  }
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    const userRef = doc(db, 'users', auth.currentUser.uid);
+    await getDoc(userRef);
   } catch (error: any) {
     const msg = error?.message || String(error);
     if (
@@ -109,10 +152,16 @@ export async function testFirestoreConnection() {
 }
 
 // Auth Actions
-export async function signInWithGoogle(): Promise<User> {
+export async function signInWithGoogle(): Promise<{ user: User; accessToken: string | null }> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
+    
+    // Extract OAuth access token from credential and cache in memory
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      cachedAccessToken = credential.accessToken;
+    }
     
     // Sync user profile to Firestore
     const userRef = doc(db, 'users', user.uid);
@@ -132,14 +181,30 @@ export async function signInWithGoogle(): Promise<User> {
       handleFirestoreError(err, OperationType.WRITE, path);
     }
     
-    return user;
+    return { user, accessToken: cachedAccessToken };
   } catch (err: unknown) {
     console.error('Sign-in error:', err);
     throw err;
   }
 }
 
+/**
+ * Ensures an active Google Drive OAuth access token is available.
+ * If token is not cached in memory, prompts user to sign in / consent via popup.
+ */
+export async function requestDriveAccessToken(): Promise<string> {
+  if (cachedAccessToken) {
+    return cachedAccessToken;
+  }
+  const { accessToken } = await signInWithGoogle();
+  if (!accessToken) {
+    throw new Error('Google Drive এক্সেস টোকেন পাওয়া যায়নি। অনুগ্রহ করে পপআপে পারমিশন দিন।');
+  }
+  return accessToken;
+}
+
 export async function signOutUser(): Promise<void> {
+  cachedAccessToken = null;
   await firebaseSignOut(auth);
 }
 

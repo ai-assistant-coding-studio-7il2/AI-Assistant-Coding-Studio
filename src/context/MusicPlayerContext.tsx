@@ -39,14 +39,17 @@ export const MusicPlayerProvider: React.FC<{ children: ReactNode }> = ({ childre
       const raw = (videoIdOrUrl || '').trim();
       if (!raw) return;
 
-      const detectedId = extractYouTubeVideoId(raw) || (raw.length === 11 ? raw : raw);
-      const resolvedTitle = title?.trim() || 'ইউটিউব মিউজিক স্ট্রিম';
+      const detectedId = extractYouTubeVideoId(raw);
+      const isDirectId = detectedId || (/^[a-zA-Z0-9_-]{11}$/.test(raw) ? raw : undefined);
+      const resolvedTitle = title?.trim() || (isDirectId ? 'ইউটিউব মিউজিক স্ট্রিম' : raw);
 
       const track: MusicTrack = {
-        videoId: detectedId,
+        videoId: isDirectId || '',
         title: resolvedTitle,
-        originalUrl: `https://www.youtube.com/watch?v=${detectedId}`,
-        searchQuery: options?.searchQuery || resolvedTitle,
+        originalUrl: isDirectId
+          ? `https://www.youtube.com/watch?v=${isDirectId}`
+          : `https://www.youtube.com/results?search_query=${encodeURIComponent(raw)}`,
+        searchQuery: options?.searchQuery || (isDirectId ? resolvedTitle : raw),
       };
 
       setCurrentTrack(track);

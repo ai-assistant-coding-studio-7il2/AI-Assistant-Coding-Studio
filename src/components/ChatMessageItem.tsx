@@ -133,6 +133,7 @@ const YouTubeSearchCard: React.FC<{
   };
   const musicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
   const musicPlayer = useMusicPlayer();
+  const miniBrowser = useMiniBrowser();
   const cleanTitle = typeof title === 'string' ? title : query;
 
   return (
@@ -151,6 +152,15 @@ const YouTubeSearchCard: React.FC<{
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => miniBrowser.openBrowser(cleanTitle, 'search')}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 text-white font-semibold text-xs transition-all shadow-xs cursor-pointer"
+          title="আমাদের অ্যাপের ভেতরে মিনি গুগল ওয়েব ব্রাউজারে খুঁজুন ও চালান"
+        >
+          <Globe className="w-3.5 h-3.5" />
+          <span>মিনি গুগল ওয়েবে খুঁজুন</span>
+        </button>
         <button
           type="button"
           onClick={() =>

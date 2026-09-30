@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   Youtube,
   Play,
-  Maximize2
+  Maximize2,
+  HardDrive
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { useVoiceInput, VoiceLanguage } from '../hooks/useVoiceInput';
@@ -35,6 +36,7 @@ interface ChatInputProps {
   setEnableSearch: (enabled: boolean | ((prev: boolean) => boolean)) => void;
   mode: AssistantMode;
   setMode: (mode: AssistantMode) => void;
+  onOpenGoogleDrive?: () => void;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -47,6 +49,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   setEnableSearch,
   mode,
   setMode,
+  onOpenGoogleDrive,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -329,6 +332,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               >
                 <Paperclip className="w-4 h-4" />
               </button>
+
+              {/* Google Drive Import Button */}
+              {onOpenGoogleDrive && (
+                <button
+                  id="chat-google-drive-btn"
+                  type="button"
+                  onClick={onOpenGoogleDrive}
+                  title="Google Drive থেকে ফাইল বা কোড ইম্পোর্ট করুন"
+                  className="p-1.5 rounded-lg text-amber-500 hover:text-amber-600 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
+                >
+                  <HardDrive className="w-4 h-4" />
+                </button>
+              )}
 
               {/* Microphone Voice Command Toggle Button with Visual Pulse Animation */}
               <div className="relative inline-flex items-center">

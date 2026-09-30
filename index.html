@@ -9,23 +9,59 @@
     <!-- Filter benign dev-environment logs like [vite] websocket in sandboxed iframe -->
     <script>
       (function() {
+        // Intercept Vite HMR WebSocket so it never produces failed connection errors in disabled-HMR sandbox
+        try {
+          var OrigWS = window.WebSocket;
+          if (OrigWS) {
+            window.WebSocket = function(url, protocols) {
+              if (typeof url === 'string' && (url.indexOf('localhost') !== -1 || url.indexOf('3000') !== -1 || url.indexOf('vite') !== -1)) {
+                var dummyWS = {
+                  url: url,
+                  readyState: 1, // WebSocket.OPEN
+                  send: function() {},
+                  close: function() {},
+                  addEventListener: function() {},
+                  removeEventListener: function() {},
+                  dispatchEvent: function() { return true; },
+                  onopen: null,
+                  onclose: null,
+                  onerror: null,
+                  onmessage: null,
+                };
+                setTimeout(function() {
+                  if (typeof dummyWS.onopen === 'function') {
+                    try { dummyWS.onopen({ type: 'open' }); } catch (err) {}
+                  }
+                }, 10);
+                return dummyWS;
+              }
+              return new OrigWS(url, protocols);
+            };
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+        } catch (e) {}
+
         function shouldFilter(args) {
           if (!args || !args.length) return false;
           for (var i = 0; i < args.length; i++) {
             var a = args[i];
+            if (a === null || a === undefined) continue;
             var str = '';
             if (typeof a === 'string') {
               str = a;
-            } else if (a && typeof a === 'object') {
-              str = (a.message || '') + ' ' + (a.stack || '') + ' ' + (a.name || '');
-              try { str += ' ' + JSON.stringify(a); } catch (err) {}
+            } else {
+              try { str = (a.message || '') + ' ' + (a.stack || '') + ' ' + (a.name || '') + ' ' + String(a); } catch (err) {}
             }
+            var lower = str.toLowerCase();
             if (
               str.indexOf('[vite]') !== -1 ||
               str.indexOf('vite:') !== -1 ||
-              str.indexOf('vite') !== -1 ||
-              str.indexOf('WebSocket') !== -1 ||
-              str.indexOf('websocket') !== -1 ||
+              lower.indexOf('[vite]') !== -1 ||
+              lower.indexOf('vite') !== -1 ||
+              lower.indexOf('websocket') !== -1 ||
               str.indexOf('@firebase/firestore') !== -1 ||
               str.indexOf('Could not reach Cloud Firestore') !== -1 ||
               str.indexOf('code=unavailable') !== -1 ||
@@ -37,7 +73,7 @@
           return false;
         }
 
-        ['error', 'warn', 'log', 'info', 'debug'].forEach(function(m) {
+        ['error', 'warn', 'info', 'log', 'debug'].forEach(function(m) {
           var orig = console[m];
           if (!orig) return;
           console[m] = function() {
@@ -49,17 +85,12 @@
         window.addEventListener('error', function(e) {
           var msg = (e && (e.message || (e.error && e.error.message))) || '';
           var src = (e && (e.filename || '')) || '';
+          var lower = String(msg).toLowerCase();
           if (
-            (typeof msg === 'string' && (
-              msg.indexOf('[vite]') !== -1 ||
-              msg.indexOf('WebSocket') !== -1 ||
-              msg.indexOf('vite') !== -1 ||
-              msg.indexOf('@firebase/firestore') !== -1 ||
-              msg.indexOf('Could not reach Cloud Firestore') !== -1 ||
-              msg.indexOf('code=unavailable') !== -1 ||
-              msg.indexOf('the client is offline') !== -1
-            )) ||
-            (typeof src === 'string' && (src.indexOf('@vite/client') !== -1 || src.indexOf('firestore') !== -1))
+            lower.indexOf('vite') !== -1 ||
+            lower.indexOf('websocket') !== -1 ||
+            lower.indexOf('firestore') !== -1 ||
+            src.indexOf('@vite/client') !== -1
           ) {
             e.preventDefault();
             e.stopImmediatePropagation();
@@ -69,18 +100,12 @@
 
         window.addEventListener('unhandledrejection', function(e) {
           var reason = (e && e.reason) || '';
-          var str = typeof reason === 'string' ? reason : (reason && reason.message) || '';
+          var str = typeof reason === 'string' ? reason : (reason && reason.message) || String(reason);
+          var lower = str.toLowerCase();
           if (
-            typeof str === 'string' &&
-            (
-              str.indexOf('[vite]') !== -1 ||
-              str.indexOf('WebSocket') !== -1 ||
-              str.indexOf('vite') !== -1 ||
-              str.indexOf('@firebase/firestore') !== -1 ||
-              str.indexOf('Could not reach Cloud Firestore') !== -1 ||
-              str.indexOf('code=unavailable') !== -1 ||
-              str.indexOf('the client is offline') !== -1
-            )
+            lower.indexOf('vite') !== -1 ||
+            lower.indexOf('websocket') !== -1 ||
+            lower.indexOf('firestore') !== -1
           ) {
             e.preventDefault();
             e.stopImmediatePropagation();

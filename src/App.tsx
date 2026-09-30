@@ -39,6 +39,7 @@ import { MusicPlayerProvider } from './context/MusicPlayerContext';
 import { MusicPlayerModal } from './components/MusicPlayerModal';
 import { MiniBrowserProvider } from './context/MiniBrowserContext';
 import { MiniGoogleBrowserModal } from './components/MiniGoogleBrowserModal';
+import { GoogleDriveModal } from './components/GoogleDriveModal';
 import { LandingPageVideoShowcase } from './components/LandingPageVideoShowcase';
 import { useAuth } from './context/AuthContext';
 import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
@@ -99,9 +100,17 @@ export default function App() {
   const [citizenModalOpen, setCitizenModalOpen] = useState(false);
   const [freelanceAgentModalOpen, setFreelanceAgentModalOpen] = useState(false);
   const [liveLocationModalOpen, setLiveLocationModalOpen] = useState(false);
+  const [isGoogleDriveOpen, setIsGoogleDriveOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const locationState = useLiveLocation();
   const [sessionToExport, setSessionToExport] = useState<ChatSession | null>(null);
+
+  const handleImportDriveFile = (content: string, fileName: string) => {
+    setInput((prev) => {
+      const header = `[Google Drive File: ${fileName}]\n`;
+      return prev ? `${prev}\n\n${header}${content}` : `${header}${content}`;
+    });
+  };
   const [shareModalConfig, setShareModalConfig] = useState<{
     isOpen: boolean;
     title?: string;
@@ -743,6 +752,7 @@ export default function App() {
         onOpenHostingDiagnostic={() => setHostingModalOpen(true)}
         onOpenCitizenServices={() => setCitizenModalOpen(true)}
         onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
+        onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
         onOpenShare={handleOpenShareModal}
         onSelectMode={setMode}
         currentMode={mode}
@@ -756,6 +766,7 @@ export default function App() {
           onOpenHostingDiagnostic={() => setHostingModalOpen(true)}
           onOpenCitizenServices={() => setCitizenModalOpen(true)}
           onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
+          onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
           onNewChat={handleNewChat}
           onClearChat={handleClearChat}
           onExportChat={handleExportChat}
@@ -1090,6 +1101,7 @@ export default function App() {
           setEnableSearch={setEnableSearch}
           mode={mode}
           setMode={setMode}
+          onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
         />
       </div>
 
@@ -1166,6 +1178,21 @@ export default function App() {
       <MusicPlayerModal
         onAskAIAboutSong={(prompt) => handleSendMessage(prompt)}
         onOpenShareModal={handleOpenShareModal}
+      />
+
+      {/* Google Drive Workspace Modal */}
+      <GoogleDriveModal
+        isOpen={isGoogleDriveOpen}
+        onClose={() => setIsGoogleDriveOpen(false)}
+        onImportToChat={handleImportDriveFile}
+        activeSessionTitle={activeSession?.title}
+        activeSessionContent={
+          activeSession?.messages
+            ? activeSession.messages
+                .map((m) => `### ${m.role === 'user' ? '👤 ব্যবহারকারী' : '🤖 এআই'}\n\n${m.text}\n`)
+                .join('\n---\n\n')
+            : ''
+        }
       />
 
       {/* In-App Mini Google Web Browser & Music Player Modal */}
