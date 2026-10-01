@@ -14,9 +14,17 @@
           var OrigWS = window.WebSocket;
           if (OrigWS) {
             window.WebSocket = function(url, protocols) {
-              if (typeof url === 'string' && (url.indexOf('localhost') !== -1 || url.indexOf('3000') !== -1 || url.indexOf('vite') !== -1)) {
+              var urlStr = String(url || '');
+              var isHmr = 
+                urlStr.indexOf('localhost') !== -1 || 
+                urlStr.indexOf('3000') !== -1 || 
+                urlStr.indexOf('vite') !== -1 ||
+                urlStr.indexOf('run.app') !== -1 ||
+                (typeof window !== 'undefined' && window.location && (urlStr.indexOf(window.location.host) !== -1 || urlStr.indexOf(window.location.hostname) !== -1));
+              
+              if (isHmr) {
                 var dummyWS = {
-                  url: url,
+                  url: urlStr,
                   readyState: 1, // WebSocket.OPEN
                   send: function() {},
                   close: function() {},
@@ -112,8 +120,31 @@
             return true;
           }
         }, true);
+
+        // Hide and remove any vite error overlay
+        try {
+          var observer = new MutationObserver(function(mutations) {
+            for (var i = 0; i < mutations.length; i++) {
+              var added = mutations[i].addedNodes;
+              for (var j = 0; j < added.length; j++) {
+                if (added[j].nodeName && added[j].nodeName.toLowerCase() === 'vite-error-overlay') {
+                  added[j].remove();
+                }
+              }
+            }
+          });
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+        } catch(e) {}
       })();
     </script>
+    <style>
+      vite-error-overlay {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+    </style>
     
     <!-- PWA & Mobile Web Capabilities -->
     <meta name="theme-color" content="#059669" />

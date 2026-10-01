@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Plus, 
   MessageSquare, 
@@ -15,18 +15,23 @@ import {
   Server,
   Cpu,
   Cloud,
-  CloudCheck,
   LogIn,
   Share2,
   ShieldCheck,
-  PhoneCall,
   Bot,
-  HardDrive
+  HardDrive,
+  Music,
+  Globe,
+  CheckCircle2,
+  ChevronRight,
+  Filter
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import { AppLogo } from './AppLogo';
 import { useAuth } from '../context/AuthContext';
+import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { useMiniBrowser } from '../context/MiniBrowserContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -66,6 +71,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentMode,
 }) => {
   const { user, signIn } = useAuth();
+  const musicPlayer = useMusicPlayer();
+  const miniBrowser = useMiniBrowser();
+  const [activeTab, setActiveTab] = useState<'programs' | 'history'>('programs');
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+
+  const filteredSessions = sessions.filter((s) => {
+    if (!historySearchQuery.trim()) return true;
+    const query = historySearchQuery.toLowerCase();
+    const titleMatch = (s.title || '').toLowerCase().includes(query);
+    const messageMatch = s.messages.some((m) => (m.text || '').toLowerCase().includes(query));
+    return titleMatch || messageMatch;
+  });
+
+  const modesList: Array<{ id: AssistantMode; label: string; desc: string; icon: any; color: string }> = [
+    { id: 'citizen', label: 'জনসেবা ও A-Z সমাধান', desc: 'হটলাইন, ঠিকানা, এনআইডি ও দরখাস্ত', icon: ShieldCheck, color: 'text-teal-600 dark:text-teal-400' },
+    { id: 'coding', label: 'কোডিং ও ডেভেলপমেন্ট', desc: 'Python, JS, React, AI কোড জেনারেটর', icon: Code2, color: 'text-emerald-600 dark:text-emerald-400' },
+    { id: 'writing', label: 'লেখালেখি ও অনুবাদ', desc: 'অফিসিয়াল দরখাস্ত, জিডি, ইমেইল, অনুচ্ছেদ', icon: PenTool, color: 'text-amber-600 dark:text-amber-400' },
+    { id: 'research', label: 'গবেষণা ও ফ্যাক্ট-চেক', desc: 'Google Search লাইভ ডাটা ভেরিফিকেশন', icon: Search, color: 'text-blue-600 dark:text-blue-400' },
+    { id: 'learning', label: 'পড়াশোনা ও কনসেপ্ট', desc: 'সহজ ভাষায় জটিল বিষয়ের ব্যাখ্যা', icon: GraduationCap, color: 'text-purple-600 dark:text-purple-400' },
+    { id: 'general', label: 'সাধারণ মোড (General)', desc: 'দৈনন্দিন সকল কাজের স্মার্ট উত্তর', icon: Sparkles, color: 'text-stone-600 dark:text-stone-400' },
+  ];
 
   return (
     <>
@@ -74,357 +100,461 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div
           id="sidebar-mobile-backdrop"
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-xs md:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden animate-in fade-in"
         />
       )}
 
       {/* Sidebar container */}
       <aside
         id="app-sidebar"
-        className={`fixed md:static inset-y-0 left-0 z-40 w-72 bg-stone-100 dark:bg-stone-900 border-r border-stone-200 dark:border-stone-800 flex flex-col transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-72'
+        className={`fixed md:static inset-y-0 left-0 z-50 w-[85vw] max-w-xs sm:w-80 md:w-80 bg-stone-50 dark:bg-stone-900 border-r border-stone-200 dark:border-stone-800 flex flex-col transition-transform duration-300 ease-in-out ${
+          isOpen ? 'translate-x-0 shadow-2xl md:shadow-none' : '-translate-x-full md:translate-x-0'
         } shrink-0`}
       >
         {/* Brand Banner */}
-        <div className="px-4 pt-3.5 pb-2 flex items-center justify-between">
+        <div className="p-3.5 border-b border-stone-200/80 dark:border-stone-800/80 flex items-center justify-between bg-white dark:bg-stone-900/90 shrink-0">
           <div className="flex items-center gap-2.5">
-            <AppLogo size={28} withGlow={true} />
+            <AppLogo size={32} withGlow={true} />
             <div>
-              <span className="text-xs font-extrabold text-stone-900 dark:text-stone-100 tracking-tight leading-none block">
-                AI Studio
+              <span className="text-xs font-black text-stone-900 dark:text-stone-100 tracking-tight leading-none block">
+                AI Assistant Studio
               </span>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                Gemini 3.8 Flash
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Gemini 3.8 Flash • ক্লাউড রেডি
               </span>
             </div>
           </div>
           <button
             id="sidebar-close-btn"
             onClick={onClose}
-            className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 md:hidden rounded-lg hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors"
-            title="বন্ধ করুন"
+            className="p-1.5 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 md:hidden rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+            title="সাইডবার বন্ধ করুন"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Top Header */}
-        <div className="p-3 pt-1 border-b border-stone-200 dark:border-stone-800 flex items-center gap-2">
+        {/* New Chat Primary Action Button */}
+        <div className="p-3 pb-2 border-b border-stone-200/70 dark:border-stone-800/70 shrink-0 bg-stone-100/50 dark:bg-stone-900/50">
           <button
             id="sidebar-new-chat-btn"
             onClick={() => {
               onNewChat();
               if (window.innerWidth < 768) onClose();
             }}
-            className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-white text-white dark:text-stone-900 text-xs font-semibold shadow-xs transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white text-xs font-bold shadow-sm transition-all cursor-pointer group"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
             <span>নতুন কথোপকথন (New Chat)</span>
           </button>
         </div>
 
-        {/* Mode Quick Select */}
-        <div className="px-4 py-3 border-b border-stone-200/80 dark:border-stone-800/80">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-2">
-            অ্যাসিস্ট্যান্ট মোড (Modes)
-          </p>
-          <div className="space-y-1">
+        {/* Top Segmented Tab Switcher (Programs vs History) */}
+        <div className="px-3 pt-2 pb-1 shrink-0 bg-stone-100/40 dark:bg-stone-900/40">
+          <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-stone-200/80 dark:bg-stone-800 text-xs font-semibold">
             <button
-              onClick={() => onSelectMode('citizen')}
-              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                currentMode === 'citizen'
-                  ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60'
+              type="button"
+              id="sidebar-tab-programs"
+              onClick={() => setActiveTab('programs')}
+              className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'programs'
+                  ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-300 shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
               }`}
             >
-              <ShieldCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-              <span>জনসেবা ও A-Z সমাধান</span>
+              <Cpu className="w-3.5 h-3.5" />
+              <span>সকল প্রোগ্রাম</span>
             </button>
+
             <button
-              onClick={() => onSelectMode('coding')}
-              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                currentMode === 'coding'
-                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60'
+              type="button"
+              id="sidebar-tab-history"
+              onClick={() => setActiveTab('history')}
+              className={`flex items-center justify-center gap-1.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'history'
+                  ? 'bg-white dark:bg-stone-900 text-emerald-700 dark:text-emerald-300 shadow-xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
               }`}
             >
-              <Code2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>কোডিং ও সফটওয়্যার</span>
-            </button>
-            <button
-              onClick={() => onSelectMode('writing')}
-              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                currentMode === 'writing'
-                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60'
-              }`}
-            >
-              <PenTool className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span>লেখালেখি ও যোগাযোগ</span>
-            </button>
-            <button
-              onClick={() => onSelectMode('learning')}
-              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                currentMode === 'learning'
-                  ? 'bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60'
-              }`}
-            >
-              <GraduationCap className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <span>পড়াশোনা ও কনসেপ্ট</span>
-            </button>
-            <button
-              onClick={() => onSelectMode('research')}
-              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                currentMode === 'research'
-                  ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60'
-              }`}
-            >
-              <Search className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>গবেষণা ও ফ্যাক্ট-চেক</span>
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>চ্যাট হিস্ট্রি ({sessions.length})</span>
             </button>
           </div>
         </div>
 
-        {/* Chat History List */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-stone-600 dark:text-stone-400 px-2 py-1">
-            আগের চ্যাটসমূহ ({sessions.length})
-          </p>
+        {/* Scrollable Body: Contains either all programs or chat history */}
+        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3.5 text-xs">
+          {activeTab === 'programs' ? (
+            /* =================== TAB 1: ALL PROGRAMS & TOOLS =================== */
+            <div className="space-y-3">
+              {/* Category 1: AI Agents & Specialized Toolkits */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 px-1 mb-1.5 flex items-center gap-1">
+                  <span>⚡ এআই প্রোগ্রাম ও টুলকিট</span>
+                </p>
+                <div className="space-y-1.5">
+                  {/* Freelance Agent */}
+                  {onOpenFreelanceAgent && (
+                    <button
+                      id="sidebar-prog-freelance-agent"
+                      onClick={() => {
+                        onOpenFreelanceAgent();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent hover:from-emerald-500/20 border border-emerald-500/30 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <Bot className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                              ২৪/৭ রিমোট জব এআই এজেন্ট
+                            </p>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                          </div>
+                          <p className="text-[10px] text-emerald-700 dark:text-emerald-400 truncate">
+                            Upwork/Remote জব মূল্যায়ন ও প্রপোজাল
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
 
-          {sessions.length === 0 ? (
-            <div className="p-4 text-center text-xs text-stone-600 dark:text-stone-400">
-              কোনো পূর্ববর্তী চ্যাট নেই। নতুন প্রশ্ন জিজ্ঞাসা করুন!
+                  {/* Citizen Services */}
+                  {onOpenCitizenServices && (
+                    <button
+                      id="sidebar-prog-citizen"
+                      onClick={() => {
+                        onOpenCitizenServices();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-teal-50/90 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-950/70 border border-teal-200/80 dark:border-teal-800/60 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-teal-950 dark:text-teal-200 truncate">
+                            A-Z জনসেবা ও তথ্য নির্দেশিকা
+                          </p>
+                          <p className="text-[10px] text-teal-700/90 dark:text-teal-400/90 truncate">
+                            হটলাইন, ঠিকানা, এনআইডি ও দরখাস্ত
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* Google Drive Workspace */}
+                  {onOpenGoogleDrive && (
+                    <button
+                      id="sidebar-prog-drive"
+                      onClick={() => {
+                        onOpenGoogleDrive();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-amber-50/90 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/70 border border-amber-300/60 dark:border-amber-800/60 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <HardDrive className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-amber-950 dark:text-amber-200 truncate">
+                            Google Drive ক্লাউড স্টুডিও
+                          </p>
+                          <p className="text-[10px] text-amber-700/90 dark:text-amber-400/90 truncate">
+                            ফাইল ইম্পোর্ট ও সোর্স কোড বিশ্লেষণ
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* Architecture Blueprint */}
+                  <button
+                    id="sidebar-prog-architecture"
+                    onClick={() => {
+                      onOpenArchitecture();
+                      if (window.innerWidth < 768) onClose();
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-stone-100 hover:bg-stone-200/80 dark:bg-stone-800/80 dark:hover:bg-stone-800 border border-stone-200 dark:border-stone-700 text-left transition-all group cursor-pointer shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-stone-800 dark:bg-stone-700 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                        <Layers className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                          AI আর্কিটেকচার ব্লুপ্রিন্ট
+                        </p>
+                        <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate">
+                          Claude ও ChatGPT-এর মতো অ্যাপ বানানোর গাইড
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-stone-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  {/* Hosting & AI Diagnostics */}
+                  {onOpenHostingDiagnostic && (
+                    <button
+                      id="sidebar-prog-hosting"
+                      onClick={() => {
+                        onOpenHostingDiagnostic();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/70 hover:bg-emerald-100/80 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/60 border border-emerald-300/50 dark:border-emerald-800/50 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <Server className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200 truncate">
+                            হোস্টিং ও সার্ভার ডায়াগনস্টিক
+                          </p>
+                          <p className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 truncate">
+                            এআই API হেলথ চেক ও কোটা সমাধান
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* YouTube Music Studio */}
+                  <button
+                    id="sidebar-prog-youtube-music"
+                    onClick={() => {
+                      if (musicPlayer.currentTrack) {
+                        musicPlayer.expandPlayer();
+                      } else {
+                        musicPlayer.playVideoId('jfKfPfyJRdk', 'Lofi Girl - Chill Beats to Code & Study');
+                      }
+                      if (window.innerWidth < 768) onClose();
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-red-50/70 hover:bg-red-100/80 dark:bg-red-950/30 dark:hover:bg-red-950/60 border border-red-300/50 dark:border-red-800/50 text-left transition-all group cursor-pointer shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                        <Music className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-red-950 dark:text-red-200 truncate">
+                          ইউটিউব গান ও মিডিয়া স্টুডিও
+                        </p>
+                        <p className="text-[10px] text-red-700/80 dark:text-red-400/80 truncate">
+                          ইন-অ্যাপ ব্যাকগ্রাউন্ড গান ও ভিডিও
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  {/* Mini Google Browser */}
+                  <button
+                    id="sidebar-prog-mini-browser"
+                    onClick={() => {
+                      miniBrowser.openBrowser('https://www.google.com');
+                      if (window.innerWidth < 768) onClose();
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 rounded-xl bg-blue-50/70 hover:bg-blue-100/80 dark:bg-blue-950/30 dark:hover:bg-blue-950/60 border border-blue-300/50 dark:border-blue-800/50 text-left transition-all group cursor-pointer shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                        <Globe className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-blue-950 dark:text-blue-200 truncate">
+                          মিনি গুগল ওয়েব ব্রাউজার
+                        </p>
+                        <p className="text-[10px] text-blue-700/80 dark:text-blue-400/80 truncate">
+                          লাইভ ওয়েব সার্চ ও রেফারেন্স
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  {/* Share App Modal */}
+                  {onOpenShare && (
+                    <button
+                      id="sidebar-prog-share"
+                      onClick={() => {
+                        onOpenShare({ shareType: 'app' });
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 border border-emerald-300/50 dark:border-emerald-800/50 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <Share2 className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200 truncate">
+                            সোশ্যাল মিডিয়ায় শেয়ার করুন
+                          </p>
+                          <p className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 truncate">
+                            WhatsApp, FB, লিঙ্ক ও QR কোড
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Category 2: Assistant Modes */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 px-1 mb-1.5">
+                  🎯 অ্যাসিস্ট্যান্ট মোডসমূহ (Modes)
+                </p>
+                <div className="space-y-1">
+                  {modesList.map((m) => {
+                    const Icon = m.icon;
+                    const isActive = currentMode === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        id={`sidebar-mode-item-${m.id}`}
+                        onClick={() => {
+                          onSelectMode(m.id);
+                          if (window.innerWidth < 768) onClose();
+                        }}
+                        className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 font-semibold shadow-xs'
+                            : 'text-stone-700 dark:text-stone-300 hover:bg-stone-200/70 dark:hover:bg-stone-800/70'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-emerald-400 dark:text-emerald-600' : m.color}`} />
+                          <div className="min-w-0">
+                            <span className="block truncate">{m.label}</span>
+                            <span className={`block text-[10px] truncate ${isActive ? 'text-stone-300 dark:text-stone-600' : 'text-stone-400'}`}>
+                              {m.desc}
+                            </span>
+                          </div>
+                        </div>
+                        {isActive && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 dark:text-emerald-600 shrink-0 ml-1" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* PWA Install */}
+              <div className="pt-1">
+                <PWAInstallButton variant="sidebar" />
+              </div>
             </div>
           ) : (
-            sessions.map((s) => {
-              const isActive = s.id === activeSessionId;
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => {
-                    onSelectSession(s.id);
-                    if (window.innerWidth < 768) onClose();
-                  }}
-                  className={`group relative flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition-all ${
-                    isActive
-                      ? 'bg-white dark:bg-stone-800 font-semibold text-stone-900 dark:text-stone-100 shadow-xs border border-stone-200 dark:border-stone-700'
-                      : 'text-stone-700 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/60'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0 pr-2">
-                    <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-emerald-500' : 'text-stone-400'}`} />
-                    <span className="truncate">{s.title || 'নতুন কথোপকথন'}</span>
-                    {s.isGeneratingTitle && (
-                      <span title="এআই শিরোনাম তৈরি করছে..." className="shrink-0 inline-flex items-center">
-                        <Sparkles className="w-3 h-3 text-emerald-500 animate-spin" />
-                      </span>
-                    )}
+            /* =================== TAB 2: CHAT SESSIONS HISTORY =================== */
+            <div className="space-y-2.5">
+              {/* Search filter for history */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input
+                  type="text"
+                  value={historySearchQuery}
+                  onChange={(e) => setHistorySearchQuery(e.target.value)}
+                  placeholder="পূর্ববর্তী চ্যাট খুঁজুন..."
+                  className="w-full pl-8 pr-2.5 py-1.5 rounded-xl text-xs bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 focus:outline-hidden focus:border-emerald-500 text-stone-900 dark:text-stone-100"
+                />
+                {historySearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setHistorySearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Sessions List */}
+              <div className="space-y-1">
+                {filteredSessions.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-stone-500 dark:text-stone-400">
+                    {historySearchQuery ? 'কোনো চ্যাট খুঁজে পাওয়া যায়নি।' : 'কোনো পূর্ববর্তী চ্যাট নেই। নতুন চ্যাট শুরু করুন!'}
                   </div>
-                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {s.messages.length > 0 && onExportSession && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onExportSession(s, e);
+                ) : (
+                  filteredSessions.map((s) => {
+                    const isActive = s.id === activeSessionId;
+                    return (
+                      <div
+                        key={s.id}
+                        id={`sidebar-session-${s.id}`}
+                        onClick={() => {
+                          onSelectSession(s.id);
+                          if (window.innerWidth < 768) onClose();
                         }}
-                        title="চ্যাট এক্সপোর্ট করুন (PDF / JSON)"
-                        className="p-1 text-stone-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-stone-200 dark:hover:bg-stone-700 rounded transition-colors"
+                        className={`group relative flex items-center justify-between p-2.5 rounded-xl text-xs cursor-pointer transition-all ${
+                          isActive
+                            ? 'bg-white dark:bg-stone-800 font-semibold text-stone-900 dark:text-stone-100 shadow-xs border border-stone-300 dark:border-stone-700'
+                            : 'text-stone-700 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800/60'
+                        }`}
                       >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteSession(s.id, e);
-                      }}
-                      title="চ্যাট মুছে ফেলুন"
-                      className="p-1 text-stone-400 hover:text-rose-500 hover:bg-stone-200 dark:hover:bg-stone-700 rounded transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-emerald-500' : 'text-stone-400'}`} />
+                          <div className="min-w-0">
+                            <span className="truncate block">{s.title || 'নতুন কথোপকথন'}</span>
+                            <span className="text-[10px] text-stone-400 block font-normal">
+                              {s.messages.length}টি বার্তা
+                            </span>
+                          </div>
+                          {s.isGeneratingTitle && (
+                            <span title="শিরোনাম তৈরি হচ্ছে..." className="shrink-0 inline-flex items-center">
+                              <Sparkles className="w-3 h-3 text-emerald-500 animate-spin" />
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                          {s.messages.length > 0 && onExportSession && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onExportSession(s, e);
+                              }}
+                              title="PDF বা JSON এক্সপোর্ট"
+                              className="p-1 text-stone-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-stone-200 dark:hover:bg-stone-700 rounded transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteSession(s.id, e);
+                            }}
+                            title="মুছে ফেলুন"
+                            className="p-1 text-stone-400 hover:text-rose-500 hover:bg-stone-200 dark:hover:bg-stone-700 rounded transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           )}
         </div>
 
-        {/* PWA Install Button & Architecture Blueprint Promo */}
-        <div className="p-3 border-t border-stone-200 dark:border-stone-800 space-y-2">
-          <PWAInstallButton variant="sidebar" />
-
-          <button
-            onClick={() => {
-              onOpenArchitecture();
-              if (window.innerWidth < 768) onClose();
-            }}
-            className="w-full text-left p-3 rounded-xl bg-gradient-to-br from-amber-500/10 to-emerald-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
-          >
-            <div className="flex items-center gap-2 text-xs font-bold text-stone-900 dark:text-stone-100">
-              <Layers className="w-4 h-4 text-amber-500" />
-              <span>AI আর্কিটেকচার ব্লুপ্রিন্ট</span>
-            </div>
-            <p className="text-[11px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-              Claude-এর মতো AI বানানোর বাস্তবসম্মত গাইডলাইন (পথ ১ বনাম পথ ২)
-            </p>
-          </button>
-
-          {onOpenHostingDiagnostic && (
-            <button
-              id="sidebar-hosting-diagnostic-btn"
-              onClick={() => {
-                onOpenHostingDiagnostic();
-                if (window.innerWidth < 768) onClose();
-              }}
-              className="w-full text-left p-2.5 mt-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/25 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-bold text-emerald-950 dark:text-emerald-200">
-                  <Server className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span>হোস্টিং ও এআই ডায়াগনস্টিক</span>
-                </div>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              </div>
-              <p className="text-[10px] text-emerald-800/80 dark:text-emerald-300/80 mt-1">
-                সার্ভার হেলথ চেক ও ক্লাউড সমাধান নির্দেশিকা
-              </p>
-            </button>
-          )}
-        </div>
-
-        {/* Citizen Services Launcher */}
-        {onOpenCitizenServices && (
-          <div className="px-3 pt-2 pb-1">
-            <button
-              id="sidebar-citizen-services-btn"
-              onClick={() => {
-                onOpenCitizenServices();
-                if (window.innerWidth < 768) onClose();
-              }}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-teal-50/90 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-950/70 border border-teal-200/80 dark:border-teal-800/60 text-left transition-all group cursor-pointer shadow-2xs"
-              title="জরুরি মোবাইল নম্বর, ঠিকানা, পরিচয় যাচাই ও দরখাস্ত কেন্দ্র"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-teal-950 dark:text-teal-200 truncate">
-                    জনসেবা ও A-Z টুলকিট
-                  </p>
-                  <p className="text-[10px] text-teal-700/90 dark:text-teal-400/90 truncate">
-                    হটলাইন, ঠিকানা, এনআইডি ও দরখাস্ত
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/60 px-1.5 py-0.5 rounded-md">
-                খুলুন
-              </span>
-            </button>
-          </div>
-        )}
-
-        {/* Autonomous Remote Freelance AI Agent Launcher */}
-        {onOpenFreelanceAgent && (
-          <div className="px-3 pt-1 pb-1">
-            <button
-              id="sidebar-freelance-agent-btn"
-              onClick={() => {
-                onOpenFreelanceAgent();
-                if (window.innerWidth < 768) onClose();
-              }}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent hover:from-emerald-500/25 border border-emerald-500/30 text-left transition-all group cursor-pointer shadow-2xs"
-              title="২৪ ঘণ্টা স্বয়ংক্রিয় রিমোট জব ও ফ্রিল্যান্স এআই এজেন্ট"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
-                  <Bot className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
-                      রিমোট এআই জব এজেন্ট
-                    </p>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                  </div>
-                  <p className="text-[10px] text-emerald-700 dark:text-emerald-400 truncate">
-                    Upwork/Remote জব ও প্রপোজাল
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded-md">
-                ২৪/৭
-              </span>
-            </button>
-          </div>
-        )}
-
-        {/* Google Drive Workspace Launcher */}
-        {onOpenGoogleDrive && (
-          <div className="px-3 pt-1 pb-1">
-            <button
-              id="sidebar-google-drive-btn"
-              onClick={() => {
-                onOpenGoogleDrive();
-                if (window.innerWidth < 768) onClose();
-              }}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-left transition-all group cursor-pointer shadow-2xs"
-              title="Google Drive ফাইল ম্যানেজার ও ক্লাউড স্টোরেজ"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-amber-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
-                  <HardDrive className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-amber-950 dark:text-amber-200 truncate">
-                    Google Drive
-                  </p>
-                  <p className="text-[10px] text-amber-700/90 dark:text-amber-400/90 truncate">
-                    ক্লাউড ফাইল ব্রাউজ ও ব্যাকআপ
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.5 rounded-md">
-                ড্রাইভ
-              </span>
-            </button>
-          </div>
-        )}
-
-        {/* Share on Social Media Platforms */}
-        <div className="px-3 pt-1 pb-2">
-          <button
-            id="sidebar-share-app-btn"
-            onClick={() => onOpenShare && onOpenShare({ shareType: 'app' })}
-            className="w-full flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 hover:bg-emerald-100/90 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/70 border border-emerald-200/80 dark:border-emerald-800/60 text-left transition-all group cursor-pointer shadow-2xs"
-            title="সোশ্যাল মিডিয়া ও বন্ধুদের সাথে অ্যাপটি শেয়ার করুন"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
-                <Share2 className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200 truncate">
-                  মিডিয়া প্ল্যাটফর্মে শেয়ার
-                </p>
-                <p className="text-[10px] text-emerald-700/90 dark:text-emerald-400/90 truncate">
-                  WhatsApp, FB, X, লিঙ্ক ও QR
-                </p>
-              </div>
-            </div>
-            <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded-md">
-              শেয়ার
-            </span>
-          </button>
-        </div>
-
-        {/* Firebase Cloud Sync Card */}
-        <div className="p-3 border-t border-stone-200 dark:border-stone-800">
+        {/* Firebase Cloud Sync Status Card */}
+        <div className="p-3 border-t border-stone-200 dark:border-stone-800 shrink-0 bg-stone-100/60 dark:bg-stone-900/60">
           {user ? (
-            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60">
+            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60">
               <div className="flex items-center gap-2">
                 {user.photoURL ? (
                   <img
@@ -442,7 +572,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div className="flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 truncate">
-                      ফায়ারস্টোর সিঙ্কড
+                      ফায়ারস্টোর ক্লাউড সিঙ্ক
                     </span>
                   </div>
                   <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate">
@@ -455,16 +585,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               id="sidebar-cloud-login-btn"
               onClick={() => signIn()}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-stone-100 hover:bg-stone-200/80 dark:bg-stone-800 dark:hover:bg-stone-750 border border-stone-200 dark:border-stone-700 text-left transition-colors group"
+              className="w-full flex items-center justify-between p-2 rounded-xl bg-white hover:bg-stone-100 dark:bg-stone-800 dark:hover:bg-stone-750 border border-stone-200 dark:border-stone-700 text-left transition-colors group cursor-pointer shadow-2xs"
             >
               <div className="flex items-center gap-2">
                 <Cloud className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <div>
                   <p className="text-xs font-semibold text-stone-800 dark:text-stone-200">
-                    ক্লাউড ব্যাকআপ
+                    ক্লাউড ব্যাকআপ সিঙ্ক
                   </p>
                   <p className="text-[10px] text-stone-500 dark:text-stone-400">
-                    Firestore-এ ডাটা সেভ রাখুন
+                    Firestore-এ চ্যাট সংরক্ষণ করুন
                   </p>
                 </div>
               </div>
@@ -473,21 +603,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Footer specs */}
-        <div className="px-4 py-3 bg-stone-200/50 dark:bg-stone-950/60 border-t border-stone-200 dark:border-stone-800 text-[10px] text-stone-600 dark:text-stone-400 space-y-1">
+        {/* Footer specs & Identity */}
+        <div className="px-3.5 py-2.5 bg-stone-200/50 dark:bg-stone-950/70 border-t border-stone-200 dark:border-stone-800 text-[10px] text-stone-500 dark:text-stone-400 space-y-1 shrink-0">
           <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1 font-mono">
-              <Cpu className="w-3 h-3 text-emerald-500" />
-              Model:
-            </span>
-            <span className="font-semibold text-stone-700 dark:text-stone-300">Gemini 3.8 Flash</span>
+            <span className="font-semibold text-stone-700 dark:text-stone-300">কোম্পানি / প্ল্যাটফর্ম:</span>
+            <span className="font-bold text-emerald-700 dark:text-emerald-400">AI Assistant & Coding Studio</span>
           </div>
           <div className="flex items-center justify-between">
+            <span className="font-semibold text-stone-700 dark:text-stone-300">ডেভেলপমেন্ট:</span>
+            <span className="text-stone-600 dark:text-stone-400">সফটওয়্যার ইঞ্জিনিয়ারিং টিম</span>
+          </div>
+          <div className="flex items-center justify-between pt-0.5 border-t border-stone-200/60 dark:border-stone-800/60">
             <span className="flex items-center gap-1 font-mono">
-              <Server className="w-3 h-3 text-blue-500" />
-              Search:
+              <Cpu className="w-3 h-3 text-emerald-500" />
+              Engine:
             </span>
-            <span className="text-emerald-700 dark:text-emerald-400 font-medium">Google Search Grounding</span>
+            <span className="font-semibold text-stone-700 dark:text-stone-300">Gemini 3.8 Flash</span>
           </div>
         </div>
       </aside>

@@ -1084,7 +1084,7 @@ export default function App() {
                     isGenerating={isGenerating}
                   />
                 ))}
-                <div ref={messagesEndRef} className="h-4" />
+                <div ref={messagesEndRef} className="h-20 sm:h-28 md:h-36" />
               </div>
             </div>
           )}

@@ -21,9 +21,17 @@ export default defineConfig(() => {
     var OrigWS = window.WebSocket;
     if (OrigWS) {
       window.WebSocket = function(url, protocols) {
-        if (typeof url === 'string' && (url.indexOf('localhost') !== -1 || url.indexOf('3000') !== -1 || url.indexOf('vite') !== -1)) {
+        var urlStr = String(url || '');
+        var isHmr = 
+          urlStr.indexOf('localhost') !== -1 || 
+          urlStr.indexOf('3000') !== -1 || 
+          urlStr.indexOf('vite') !== -1 ||
+          urlStr.indexOf('run.app') !== -1 ||
+          (typeof window !== 'undefined' && window.location && (urlStr.indexOf(window.location.host) !== -1 || urlStr.indexOf(window.location.hostname) !== -1));
+
+        if (isHmr) {
           var dummyWS = {
-            url: url,
+            url: urlStr,
             readyState: 1,
             send: function() {},
             close: function() {},

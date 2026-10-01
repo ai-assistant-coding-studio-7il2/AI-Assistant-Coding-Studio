@@ -28,7 +28,21 @@ export function isDirectGeminiAvailable(): boolean {
   return Boolean(getDirectGeminiApiKey());
 }
 
-const DEFAULT_SYSTEM_INSTRUCTION = `You are a knowledgeable, thoughtful, and highly capable AI Assistant and Software Engineering Companion (অনুরূপ Claude/Gemini).
+const DEFAULT_SYSTEM_INSTRUCTION = `You are the official AI Assistant of "AI Assistant & Coding Studio" (বাংলা ও ইংরেজি স্মার্ট এআই সহকারী ও কোডিং স্টুডিও).
+
+YOUR IDENTITY & ORIGIN (আপনার পরিচয় ও সৃষ্টি):
+- আপনার নাম: "AI Assistant" (বাংলায়: এআই অ্যাসিস্ট্যান্ট বা এআই সহকারী)।
+- প্ল্যাটফর্ম ও অ্যাপ্লিকেশনের নাম: "AI Assistant & Coding Studio"।
+- আপনাকে কে তৈরি বা সৃষ্টি করেছে / কার অবদান:
+  * এই অ্যাপ্লিকেশন ও স্টুডিও প্ল্যাটফর্মটি তৈরি ও পরিচালনা করেছে "AI Assistant & Coding Studio" টিম / ডেভেলপমেন্ট দল (আমাদের উদ্ভাবক ও সফটওয়্যার আর্কিটেক্ট টিম)।
+  * আপনার বুদ্ধিমত্তা ও ভাষা মডেল চালিত হচ্ছে Google-এর সর্বাধুনিক "Gemini 3.8 Flash" (Google DeepMind) প্রযুক্তি দ্বারা।
+  * যখন ব্যবহারকারী বাংলায় জিজ্ঞেস করবে "আপনাদের কোম্পানির নাম কি?", "আপনাকে কে সৃষ্টি করেছে?", "আপনার পরিচয় কী?", "কে বানিয়েছে?", বা "Who created you? / What is your company name?":
+    - সশ্রদ্ধ, মার্জিত ও সুন্দর ভাষায় আত্মবিশ্বাসের সাথে উত্তর দিন।
+    - স্পষ্ট করে বলুন:
+      "আমি 'AI Assistant & Coding Studio' (এআই অ্যাসিস্ট্যান্ট অ্যান্ড কোডিং স্টুডিও)-এর নিজস্ব স্মার্ট কৃত্রিম বুদ্ধিমত্তা (AI) সহকারী।
+      আমাকে তৈরি ও ডিজাইন করেছে আমাদের সফটওয়্যার ডেভেলপমেন্ট টিম। আমার পেছনে বুদ্ধিমত্তা ও ভাষা মডেল হিসেবে কাজ করছে Google-এর অত্যাধুনিক Gemini 3.8 Flash ইঞ্জিন।
+      বাংলা ও ইংরেজি—উভয় ভাষায় প্রোগ্রামিং/কোডিং, টেকনিক্যাল সমস্যা সমাধান, অফিশিয়াল দরখাস্ত ও চিঠি লেখা, এ টু জেড জনসেবা ও জরুরি তথ্য প্রদান, এবং দ্রুত গবেষণায় আপনাকে সহায়তা করাই আমার মূল দায়িত্ব।"
+
 You are fluent in both Bengali (বাংলা) and English.
 You excel in:
 1. Coding & Software Development (Python, TypeScript, React, algorithms, code review, debugging, step-by-step reasoning).
@@ -107,84 +121,99 @@ export async function callDirectGeminiStream(options: DirectGeminiStreamOptions)
     ];
   }
 
-  // Model selection: gemini-2.5-flash is widely supported for direct REST streaming
-  const primaryModel = 'gemini-2.5-flash';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${primaryModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
+  // Model selection: gemini-3.8-flash is the primary active model with fallback support
+  const modelsToTry = ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-flash-lite'];
+  let lastError: any = null;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-    signal,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    let parsedMsg = `HTTP Error ${response.status}`;
+  for (const model of modelsToTry) {
     try {
-      const errJson = JSON.parse(errorText);
-      parsedMsg = errJson?.error?.message || parsedMsg;
-    } catch {
-      // ignore
-    }
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-    if (parsedMsg.includes('API_KEY_INVALID') || parsedMsg.includes('API key not valid')) {
-      throw new Error('প্রদত্ত Gemini API Key সঠিক নয়। অনুগ্রহ করে সঠিক চাবি পরীক্ষা করুন।');
-    }
-    if (parsedMsg.includes('Quota exceeded') || parsedMsg.includes('RESOURCE_EXHAUSTED')) {
-      throw new Error('এআই কোটা সীমা (Rate Limit 429) সাময়িকভাবে শেষ হয়েছে। কয়েক সেকেন্ড পর চেষ্টা করুন।');
-    }
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal,
+      });
 
-    throw new Error(`Gemini Direct API ত্রুটি: ${parsedMsg}`);
-  }
-
-  if (!response.body) {
-    throw new Error('ReadableStream not supported on this device.');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-  let accumulatedText = '';
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-
-    const chunk = decoder.decode(value, { stream: true });
-    const lines = chunk.split('\n');
-
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        const jsonStr = line.slice(6).trim();
-        if (!jsonStr) continue;
-
+      if (!response.ok) {
+        const errorText = await response.text();
+        let parsedMsg = `HTTP Error ${response.status}`;
         try {
-          const parsed = JSON.parse(jsonStr);
-          const candidate = parsed.candidates?.[0];
-          
-          if (candidate?.content?.parts?.[0]?.text) {
-            const piece = candidate.content.parts[0].text;
-            accumulatedText += piece;
-            onChunk(piece);
-          }
+          const errJson = JSON.parse(errorText);
+          parsedMsg = errJson?.error?.message || parsedMsg;
+        } catch {
+          // ignore
+        }
 
-          // Grounding Metadata
-          if (candidate?.groundingMetadata) {
-            onGrounding?.(candidate.groundingMetadata);
-            if (candidate.groundingMetadata.webSearchQueries) {
-              onSearchQueries?.(candidate.groundingMetadata.webSearchQueries);
+        if (parsedMsg.includes('API_KEY_INVALID') || parsedMsg.includes('API key not valid')) {
+          throw new Error('প্রদত্ত Gemini API Key সঠিক নয়। অনুগ্রহ করে সঠিক চাবি পরীক্ষা করুন।');
+        }
+        if (parsedMsg.includes('Quota exceeded') || parsedMsg.includes('RESOURCE_EXHAUSTED')) {
+          throw new Error('এআই কোটা সীমা (Rate Limit 429) সাময়িকভাবে শেষ হয়েছে। কয়েক সেকেন্ড পর চেষ্টা করুন।');
+        }
+
+        // If the model is not available or search failed, retry next model
+        lastError = new Error(`Gemini Direct API ত্রুটি: ${parsedMsg}`);
+        continue;
+      }
+
+      if (!response.body) {
+        throw new Error('ReadableStream not supported on this device.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let accumulatedText = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr) continue;
+
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const candidate = parsed.candidates?.[0];
+              
+              if (candidate?.content?.parts?.[0]?.text) {
+                const piece = candidate.content.parts[0].text;
+                accumulatedText += piece;
+                onChunk(piece);
+              }
+
+              // Grounding Metadata
+              if (candidate?.groundingMetadata) {
+                onGrounding?.(candidate.groundingMetadata);
+                if (candidate.groundingMetadata.webSearchQueries) {
+                  onSearchQueries?.(candidate.groundingMetadata.webSearchQueries);
+                }
+              }
+            } catch {
+              // ignore chunk parse issues
             }
           }
-        } catch {
-          // ignore chunk parse issues
         }
       }
+
+      return accumulatedText;
+    } catch (err: any) {
+      if (err.name === 'AbortError' || signal?.aborted) {
+        throw err;
+      }
+      lastError = err;
     }
   }
 
-  return accumulatedText;
+  throw lastError || new Error('সকল এআই মডেল সংযোগ ব্যর্থ হয়েছে।');
 }
 
 /**
@@ -197,7 +226,7 @@ export async function generateDirectSessionTitle(userMessage: string): Promise<s
   }
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -261,7 +290,7 @@ Output ONLY valid JSON:
 }
 `;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -327,7 +356,7 @@ Output ONLY valid JSON:
 }
 `;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

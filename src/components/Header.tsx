@@ -262,6 +262,18 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Header Actions */}
       <div className="flex items-center gap-1.5">
+        {onOpenFreelanceAgent && (
+          <button
+            id="open-freelance-agent-btn"
+            onClick={onOpenFreelanceAgent}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-colors shadow-xs"
+            title="২৪/৭ রিমোট জব ও ফ্রিল্যান্স এআই এজেন্ট স্টুডিও"
+          >
+            <Bot className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden md:inline">রিমোট জব এজেন্ট</span>
+          </button>
+        )}
+
         {onOpenCitizenServices && (
           <button
             id="open-citizen-services-btn"

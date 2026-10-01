@@ -30,11 +30,15 @@ import {
   HelpCircle,
   Maximize2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
   Languages
 } from 'lucide-react';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { ChatMessage, GroundingChunk } from '../types';
+import { ContinuousTTSPlayer } from '../utils/textToSpeech';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -506,12 +510,8 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   const [editText, setEditText] = useState(message.text);
   const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const chunksRef = useRef<string[]>([]);
-  const currentChunkIndexRef = useRef<number>(0);
-  const isCancelledRef = useRef<boolean>(false);
-  const keepAliveIntervalRef = useRef<any>(null);
-  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const chunkWatchdogRef = useRef<any>(null);
+  const [currentReadingSentence, setCurrentReadingSentence] = useState<string>('');
+  const ttsPlayerRef = useRef<ContinuousTTSPlayer | null>(null);
 
   // Available Browser Speech Voices & Selection
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -592,15 +592,14 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       localStorage.setItem('ai_preferred_tts_voice', voiceURI);
     } catch {}
 
-    if (isSpeaking) {
-      isCancelledRef.current = true;
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
+    if (ttsPlayerRef.current) {
+      ttsPlayerRef.current.updateOptions({
+        voiceURI,
+        preferredMode: voiceURI === 'auto' ? 'natural' : 'browser',
+      });
+      if (isSpeaking) {
+        ttsPlayerRef.current.jumpToChunk(activeChunk);
       }
-      setTimeout(() => {
-        isCancelledRef.current = false;
-        playChunkAt(currentChunkIndexRef.current, speechSpeed, voiceURI);
-      }, 50);
     }
   };
 
@@ -654,226 +653,46 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       .trim();
   };
 
-  // Split long text into natural sentence-sized chunks (~70-90 chars) to prevent Web Speech API 15-second browser cutoffs
-  const splitTextIntoSpeechChunks = (text: string): string[] => {
-    // Split by Bengali dāri (।), exclamation (!), question (?), period (.), commas (,), or newlines
-    const rawSegments = text.match(/[^।?!.,;\n\r]+[।?!.,;\n\r]*/g) || [text];
-    const chunks: string[] = [];
-    let current = '';
-
-    for (const segment of rawSegments) {
-      const trimmed = segment.trim();
-      if (!trimmed) continue;
-      if (current.length + trimmed.length <= 85) {
-        current = current ? `${current} ${trimmed}` : trimmed;
-      } else {
-        if (current) chunks.push(current);
-        if (trimmed.length > 85) {
-          // Break oversized segments by words
-          const words = trimmed.split(/\s+/);
-          let sub = '';
-          for (const w of words) {
-            if (sub.length + w.length <= 85) {
-              sub = sub ? `${sub} ${w}` : w;
-            } else {
-              if (sub.trim()) chunks.push(sub.trim());
-              sub = w;
-            }
-          }
-          current = sub.trim();
-        } else {
-          current = trimmed;
-        }
-      }
-    }
-    if (current.trim()) chunks.push(current.trim());
-    return chunks.length > 0 ? chunks : [text];
-  };
-
-  const stopKeepAlive = () => {
-    if (keepAliveIntervalRef.current) {
-      clearInterval(keepAliveIntervalRef.current);
-      keepAliveIntervalRef.current = null;
-    }
-    if (chunkWatchdogRef.current) {
-      clearTimeout(chunkWatchdogRef.current);
-      chunkWatchdogRef.current = null;
-    }
-  };
-
-  const startKeepAlive = () => {
-    stopKeepAlive();
-    // In Chromium (Chrome/Edge), SpeechSynthesis has an internal 15-second bug where it pauses unexpectedly.
-    // Calling pause() and resume() with a micro-delay every 6 seconds keeps the browser audio worker alive continuously.
-    keepAliveIntervalRef.current = setInterval(() => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-          window.speechSynthesis.pause();
-          setTimeout(() => {
-            if (!isCancelledRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.paused) {
-              window.speechSynthesis.resume();
-            }
-          }, 25);
-        }
-      }
-    }, 6000);
-  };
-
-  const handleStopSpeaking = () => {
-    isCancelledRef.current = true;
-    stopKeepAlive();
-    activeUtteranceRef.current = null;
-    if ((window as any).__activeSpeechUtterance) {
-      try { delete (window as any).__activeSpeechUtterance; } catch (e) {}
-    }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    setIsSpeaking(false);
-    setIsPaused(false);
-    setActiveChunk(0);
-    setTotalChunks(0);
-  };
-
-  const playChunkAt = (index: number, speed: number, voiceOverride?: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    if (isCancelledRef.current || index >= chunksRef.current.length) {
-      handleStopSpeaking();
-      return;
-    }
-
-    if (chunkWatchdogRef.current) {
-      clearTimeout(chunkWatchdogRef.current);
-      chunkWatchdogRef.current = null;
-    }
-
-    currentChunkIndexRef.current = index;
-    setActiveChunk(index);
-
-    const chunkText = chunksRef.current[index];
-    const utterance = new SpeechSynthesisUtterance(chunkText);
-    utterance.rate = speed;
-    utterance.pitch = 1.0;
-
-    // CRITICAL: Chromium garbage collection bug fix!
-    // Storing utterance in both a React ref and a global window property prevents V8 GC from killing it mid-speech after a few seconds.
-    activeUtteranceRef.current = utterance;
-    (window as any).__activeSpeechUtterance = utterance;
-
-    // Detect language and match voice
-    const hasBengali = /[\u0980-\u09FF]/.test(chunkText);
-    const activeVoiceURI = voiceOverride !== undefined ? voiceOverride : selectedVoiceURI;
-    const voices = availableVoices.length > 0
-      ? availableVoices
-      : (typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis.getVoices() : []);
-
-    let chosenVoice: SpeechSynthesisVoice | undefined;
-
-    if (activeVoiceURI !== 'auto') {
-      chosenVoice = voices.find((v) => v.voiceURI === activeVoiceURI || v.name === activeVoiceURI);
-    }
-
-    if (chosenVoice) {
-      utterance.voice = chosenVoice;
-      utterance.lang = chosenVoice.lang;
-      setDetectedVoiceLabel(formatVoiceName(chosenVoice.name));
-    } else if (hasBengali) {
-      utterance.lang = 'bn-BD';
-      const bnVoice = voices.find(
-        (v) =>
-          v.lang.toLowerCase().startsWith('bn') ||
-          v.name.toLowerCase().includes('bangla') ||
-          v.name.toLowerCase().includes('bengali')
-      );
-      if (bnVoice) {
-        utterance.voice = bnVoice;
-        setDetectedVoiceLabel(formatVoiceName(bnVoice.name) || 'বাংলা কণ্ঠ');
-      } else {
-        setDetectedVoiceLabel('বাংলা কণ্ঠ');
-      }
+  const getOrCreateTTSPlayer = (rate = speechSpeed) => {
+    if (!ttsPlayerRef.current) {
+      ttsPlayerRef.current = new ContinuousTTSPlayer({
+        speed: rate,
+        preferredMode: selectedVoiceURI === 'auto' ? 'natural' : 'browser',
+        voiceURI: selectedVoiceURI,
+        onChunkStart: (index, total, chunkText) => {
+          setActiveChunk(index);
+          setTotalChunks(total);
+          setCurrentReadingSentence(chunkText);
+          setIsSpeaking(true);
+          setIsPaused(false);
+        },
+        onStateChange: (speaking, paused) => {
+          setIsSpeaking(speaking);
+          setIsPaused(paused);
+        },
+        onComplete: () => {
+          setIsSpeaking(false);
+          setIsPaused(false);
+          setActiveChunk(0);
+          setCurrentReadingSentence('');
+        },
+        onError: (errMsg) => {
+          setSpeechWarning(errMsg);
+          setTimeout(() => setSpeechWarning(null), 5000);
+        },
+      });
     } else {
-      utterance.lang = 'en-US';
-      const enVoice = voices.find((v) => v.lang.toLowerCase().startsWith('en'));
-      if (enVoice) {
-        utterance.voice = enVoice;
-        setDetectedVoiceLabel(formatVoiceName(enVoice.name) || 'English');
-      } else {
-        setDetectedVoiceLabel('English');
-      }
+      ttsPlayerRef.current.updateOptions({
+        speed: rate,
+        voiceURI: selectedVoiceURI,
+        preferredMode: selectedVoiceURI === 'auto' ? 'natural' : 'browser',
+      });
     }
-
-    let chunkHandled = false;
-    const advanceNext = () => {
-      if (chunkHandled || isCancelledRef.current) return;
-      chunkHandled = true;
-      if (chunkWatchdogRef.current) {
-        clearTimeout(chunkWatchdogRef.current);
-        chunkWatchdogRef.current = null;
-      }
-      const nextIndex = index + 1;
-      if (nextIndex < chunksRef.current.length) {
-        // Subtle 30ms gap between chunks for natural human rhythm
-        setTimeout(() => {
-          if (!isCancelledRef.current) {
-            playChunkAt(nextIndex, speed, voiceOverride);
-          }
-        }, 30);
-      } else {
-        handleStopSpeaking();
-      }
-    };
-
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-      setIsPaused(false);
-    };
-
-    utterance.onend = () => {
-      advanceNext();
-    };
-
-    utterance.onerror = (e) => {
-      if (isCancelledRef.current) return;
-      // Do not abort whole playback on minor interrupt/pause warning
-      if (e.error !== 'interrupted' && e.error !== 'canceled') {
-        console.warn('Speech synthesis minor chunk issue:', e.error);
-      }
-      advanceNext();
-    };
-
-    // Watchdog timer: If a chunk is unexpectedly silent or stalled for more than 10s, force advance
-    chunkWatchdogRef.current = setTimeout(() => {
-      if (!chunkHandled && !isCancelledRef.current) {
-        if (window.speechSynthesis.paused) {
-          window.speechSynthesis.resume();
-        } else {
-          advanceNext();
-        }
-      }
-    }, 10000);
-
-    try {
-      window.speechSynthesis.speak(utterance);
-      // If speechSynthesis was left paused from another process, resume it immediately
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-    } catch (err) {
-      console.warn('speechSynthesis.speak error:', err);
-      advanceNext();
-    }
+    return ttsPlayerRef.current;
   };
 
   const handleStartSpeaking = (targetSpeed?: number) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setSpeechWarning('আপনার ব্রাউজারে Web Speech API (টেক্সট-টু-স্পিচ) সমর্থিত নয়। অনুগ্রহ করে Chrome বা Edge ব্যবহার করুন।');
-      setTimeout(() => setSpeechWarning(null), 5000);
-      return;
-    }
-
     const rate = targetSpeed !== undefined ? targetSpeed : speechSpeed;
-
-    // If currently speaking: toggle pause/resume
     if (isSpeaking) {
       if (isPaused) {
         handleResumeSpeaking();
@@ -883,58 +702,50 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       return;
     }
 
-    // Cancel any previous speech
-    window.speechSynthesis.cancel();
-    isCancelledRef.current = false;
-
-    const cleaned = cleanTextForSpeech(message.text) || message.text;
-    const chunks = splitTextIntoSpeechChunks(cleaned);
-    chunksRef.current = chunks;
-    setTotalChunks(chunks.length);
-    setActiveChunk(0);
-
-    startKeepAlive();
-    playChunkAt(0, rate);
+    const player = getOrCreateTTSPlayer(rate);
+    setIsSpeaking(true);
+    setIsPaused(false);
+    player.play(message.text, 0);
   };
 
   const handlePauseSpeaking = () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window && isSpeaking) {
-      window.speechSynthesis.pause();
-      setIsPaused(true);
-    }
+    ttsPlayerRef.current?.pause();
+    setIsPaused(true);
   };
 
   const handleResumeSpeaking = () => {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-        setIsPaused(false);
-      } else {
-        isCancelledRef.current = false;
-        playChunkAt(currentChunkIndexRef.current, speechSpeed);
-      }
-    }
+    ttsPlayerRef.current?.resume();
+    setIsPaused(false);
+  };
+
+  const handleStopSpeaking = () => {
+    ttsPlayerRef.current?.stop();
+    setIsSpeaking(false);
+    setIsPaused(false);
+    setActiveChunk(0);
+    setTotalChunks(0);
+    setCurrentReadingSentence('');
   };
 
   const handleSpeedChange = (speed: number) => {
     setSpeechSpeed(speed);
-    if (isSpeaking) {
-      // Re-trigger from current chunk with updated speed
-      isCancelledRef.current = true;
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      setTimeout(() => {
-        isCancelledRef.current = false;
-        playChunkAt(currentChunkIndexRef.current, speed);
-      }, 60);
-    }
+    ttsPlayerRef.current?.updateOptions({ speed });
+  };
+
+  const handleJumpChunk = (direction: 'prev' | 'next') => {
+    if (!ttsPlayerRef.current) return;
+    const target = direction === 'prev' ? Math.max(0, activeChunk - 1) : Math.min(totalChunks - 1, activeChunk + 1);
+    ttsPlayerRef.current.jumpToChunk(target);
+  };
+
+  const handleRestartSpeaking = () => {
+    if (!ttsPlayerRef.current) return;
+    ttsPlayerRef.current.jumpToChunk(0);
   };
 
   useEffect(() => {
     return () => {
-      // Cleanup on unmount
-      handleStopSpeaking();
+      ttsPlayerRef.current?.stop();
     };
   }, []);
 
@@ -1474,6 +1285,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                     )}
                   </div>
 
+                  {/* Previous Sentence Chunk */}
+                  <button
+                    type="button"
+                    onClick={() => handleJumpChunk('prev')}
+                    disabled={activeChunk <= 0}
+                    title="পূর্ববর্তী বাক্য শুনুন"
+                    className="p-1 rounded-md text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200/60 dark:hover:bg-emerald-900/60 disabled:opacity-30 transition-colors cursor-pointer"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+
                   {/* Pause / Resume Button */}
                   <button
                     id={`ai-pause-resume-btn-${message.id}`}
@@ -1492,6 +1314,27 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                         <span>পজ</span>
                       </>
                     )}
+                  </button>
+
+                  {/* Next Sentence Chunk */}
+                  <button
+                    type="button"
+                    onClick={() => handleJumpChunk('next')}
+                    disabled={activeChunk >= totalChunks - 1}
+                    title="পরবর্তী বাক্য শুনুন"
+                    className="p-1 rounded-md text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200/60 dark:hover:bg-emerald-900/60 disabled:opacity-30 transition-colors cursor-pointer"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Restart Speaking from beginning */}
+                  <button
+                    type="button"
+                    onClick={handleRestartSpeaking}
+                    title="প্রথম থেকে আবার শুনুন"
+                    className="p-1 rounded-md text-emerald-800 dark:text-emerald-200 hover:bg-emerald-200/60 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
                   </button>
 
                   {/* Stop Button */}
@@ -1644,6 +1487,14 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                       </div>
                     )}
                   </div>
+
+                  {/* Current reading sentence preview */}
+                  {currentReadingSentence && (
+                    <div className="w-full mt-1.5 p-2 px-2.5 rounded-lg bg-emerald-100/90 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-800/80 text-xs text-emerald-950 dark:text-emerald-100 flex items-start gap-1.5 shadow-2xs">
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed font-medium break-words">"{currentReadingSentence}"</span>
+                    </div>
+                  )}
                 </div>
               )}
 

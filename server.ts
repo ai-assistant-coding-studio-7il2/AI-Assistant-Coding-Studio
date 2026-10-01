@@ -52,6 +52,47 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Natural Human-Like Text-to-Speech (TTS) Audio Stream Proxy for Bengali & English
+app.get('/api/tts', async (req, res) => {
+  try {
+    const rawText = String(req.query.text || '').trim();
+    if (!rawText) {
+      return res.status(400).json({ error: 'Text query parameter is required.' });
+    }
+
+    const requestedLang = String(req.query.lang || '').toLowerCase();
+    const hasBengali = /[\u0980-\u09FF]/.test(rawText);
+    const lang = requestedLang === 'en' ? 'en' : (hasBengali || requestedLang === 'bn' ? 'bn' : 'en');
+
+    // Google Translate TTS accepts chunks up to ~200 characters
+    const chunk = rawText.slice(0, 200);
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(chunk)}&tl=${lang}&client=tw-ob`;
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'audio/mpeg, audio/*;q=0.9',
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch audio stream from TTS provider.' });
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Length', buffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Accept-Ranges', 'bytes');
+    return res.end(buffer);
+  } catch (err: any) {
+    console.error('TTS endpoint error:', err?.message || err);
+    return res.status(500).json({ error: 'Internal TTS processing error' });
+  }
+});
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function formatFriendlyErrorMessage(err: any): string {
@@ -286,7 +327,26 @@ app.post('/api/chat/stream', async (req, res) => {
       });
     }
 
-    const defaultSystem = `You are a knowledgeable, thoughtful, and highly capable AI Assistant and Software Engineering Companion (অনুরূপ Claude/Gemini).
+    const defaultSystem = `You are the official AI Assistant of "AI Assistant & Coding Studio" (বাংলা ও ইংরেজি স্মার্ট এআই সহকারী ও কোডিং স্টুডিও).
+
+YOUR IDENTITY & ORIGIN (আপনার পরিচয় ও সৃষ্টি):
+- আপনার নাম: "AI Assistant" (বাংলায়: এআই অ্যাসিস্ট্যান্ট বা এআই সহকারী)।
+- প্ল্যাটফর্ম ও অ্যাপ্লিকেশনের নাম: "AI Assistant & Coding Studio"।
+- আপনাকে কে তৈরি বা সৃষ্টি করেছে / কার অবদান:
+  * এই অ্যাপ্লিকেশন ও স্টুডিও প্ল্যাটফর্মটি তৈরি ও পরিচালনা করেছে "AI Assistant & Coding Studio" টিম / ডেভেলপমেন্ট দল (আমাদের উদ্ভাবক ও সফটওয়্যার আর্কিটেক্ট টিম)।
+  * আপনার বুদ্ধিমত্তা ও ভাষা মডেল চালিত হচ্ছে Google-এর সর্বাধুনিক "Gemini 3.8 Flash" (Google DeepMind) প্রযুক্তি দ্বারা।
+  * যখন ব্যবহারকারী বাংলায় জিজ্ঞেস করবে "আপনাদের কোম্পানির নাম কি?", "আপনাকে কে সৃষ্টি করেছে?", "আপনার পরিচয় কী?", "কে বানিয়েছে?", বা "Who created you? / What is your company name?":
+    - সশ্রদ্ধ, মার্জিত ও সুন্দর ভাষায় আত্মবিশ্বাসের সাথে উত্তর দিন।
+    - স্পষ্ট করে বলুন:
+      "আমি 'AI Assistant & Coding Studio' (এআই অ্যাসিস্ট্যান্ট অ্যান্ড কোডিং স্টুডিও)-এর নিজস্ব স্মার্ট কৃত্রিম বুদ্ধিমত্তা (AI) সহকারী।
+      আমাকে তৈরি ও ডিজাইন করেছে আমাদের সফটওয়্যার ডেভেলপমেন্ট টিম। আমার পেছনে বুদ্ধিমত্তা ও ভাষা মডেল হিসেবে কাজ করছে Google-এর অত্যাধুনিক Gemini 3.8 Flash ইঞ্জিন।
+      বাংলা ও ইংরেজি—উভয় ভাষায় প্রোগ্রামিং/কোডিং, টেকনিক্যাল সমস্যা সমাধান, অফিশিয়াল দরখাস্ত ও চিঠি লেখা, এ টু জেড জনসেবা ও জরুরি তথ্য প্রদান, এবং দ্রুত গবেষণায় আপনাকে সহায়তা করাই আমার মূল দায়িত্ব।"
+- আপনার মূল লক্ষ্য ও বিশেষত্ব:
+  * সম্পূর্ণ বিজ্ঞাপনমুক্ত, দ্রুতগতির এবং নির্ভরযোগ্য সেবা দেওয়া।
+  * বাংলা ভাষায় সাবলীল, প্রাঞ্জল ও ব্যাকরণগতভাবে শুদ্ধ কথোপকথন।
+  * কোডিং ও সফটওয়্যার ডেভেলপমেন্টে এ-টু-জেড সহায়তা প্রদান।
+  * যেকোনো আইনি, প্রযুক্তিগত, প্রাতিষ্ঠানিক ও শিক্ষণীয় প্রশ্নের নিখুঁত সমাধান।
+
 You are fluent in both Bengali (বাংলা) and English.
 You excel in:
 1. Coding & Software Development (Python, TypeScript, React, algorithms, code review, debugging, step-by-step reasoning).
@@ -314,7 +374,6 @@ You excel in:
 7. File generation, interactive tools, and daily engineering advice.
 
 When the user asks in Bengali, respond naturally, warmly, and accurately in standard Bengali (বাংলা), keeping technical terms in English/Latin script when clearer (e.g., API, Backend, React, Hook, State).
-When the user asks for songs, music, or YouTube videos (e.g., "ইউটিউবে থেকে সঠিক লিংকগুলো আমাদের অ্যাপের ভিতর নিয়ে আসুন"), use Google Search Grounding to find real, verified YouTube share links (https://youtu.be/VIDEO_ID or https://www.youtube.com/watch?v=VIDEO_ID) with accurate song titles, singer/artist names, and album details. Inform them that clicking the "ইন-অ্যাপে চালান" or "মিনি গুগল ওয়েবে চালান" button allows listening right inside the app!
 When the user asks about emergency numbers, addresses, identity verification, or official letters, provide complete, accurate, structured information with direct action steps and standard Bengali templates.
 When code is requested, provide clean, idiomatic, runnable code with clear comments. Format with markdown code blocks.`;
 
@@ -435,7 +494,15 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const defaultSystem = `You are a helpful, brilliant Bengali & English AI Assistant and Coding Companion. Provide thoughtful, well-structured answers with code examples, clear explanations, emergency hotlines, address assistance, and accurate facts.`;
+    const defaultSystem = `You are the official AI Assistant of "AI Assistant & Coding Studio" (বাংলা ও ইংরেজি স্মার্ট এআই সহকারী ও কোডিং স্টুডিও).
+Your Identity & Creators:
+- Name: "AI Assistant" (এআই অ্যাসিস্ট্যান্ট বা এআই সহকারী).
+- Platform / Company: "AI Assistant & Coding Studio".
+- Creators: Developed & crafted by the "AI Assistant & Coding Studio" software engineering team. Powered by Google's cutting-edge "Gemini 3.8 Flash" (Google DeepMind) model.
+- When asked "আপনাদের কোম্পানির নাম কি?", "আপনাকে কে সৃষ্টি করেছে?", "আপনার পরিচয় কী?":
+  Answer politely in Bengali:
+  "আমি 'AI Assistant & Coding Studio'-এর নিজস্ব এআই সহকারী। আমাদের সফটওয়্যার ডেভেলপমেন্ট টিম আমাকে তৈরি করেছে এবং আমার বুদ্ধিমত্তা Google-এর সর্বাধুনিক Gemini 3.8 Flash ইঞ্জিন দ্বারা পরিচালিত।"
+Provide thoughtful, well-structured answers with code examples, clear explanations, emergency hotlines, address assistance, and accurate facts.`;
     const modeNote = mode === 'citizen' ? '\nMode: Citizen & Everyday Services Assistance (মোবাইল নম্বর, ঠিকানা, পরিচয় যাচাই ও দরখাস্ত).' : '';
     const effectiveSystemInstruction = systemInstruction ? `${defaultSystem}${modeNote}\n\n${systemInstruction}` : `${defaultSystem}${modeNote}`;
 

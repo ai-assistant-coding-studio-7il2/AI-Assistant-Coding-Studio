@@ -65,6 +65,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     errorMessage,
     setErrorMessage,
     audioLevel,
+    interimText,
   } = useVoiceInput({
     defaultLang: 'bn-BD',
     onTranscriptUpdate: (transcript) => {
@@ -120,7 +121,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleVoiceToggle = () => {
     setErrorMessage(null);
-    toggleListening();
+    toggleListening(input);
   };
 
   const modeButtons: Array<{ id: AssistantMode; label: string; icon: any }> = [
@@ -133,8 +134,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   ];
 
   return (
-    <div className="border-t border-stone-200 dark:border-stone-800 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md px-4 py-3 sm:px-6">
-      <div className="max-w-4xl mx-auto space-y-2.5">
+    <div className="border-t border-stone-200/80 dark:border-stone-800/80 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md px-3 pt-2 pb-3.5 sm:px-6 md:px-8 md:pt-2.5 md:pb-6 lg:pb-7 transition-all shrink-0">
+      <div className="max-w-4xl mx-auto space-y-2">
         {/* Error notification if microphone is blocked */}
         {errorMessage && (
           <div
@@ -158,55 +159,84 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         {isListening && (
           <div
             id="voice-recording-active-banner"
-            className="p-2.5 px-3.5 rounded-xl bg-gradient-to-r from-rose-500/10 via-emerald-500/10 to-blue-500/10 border border-rose-500/30 dark:border-rose-500/40 flex flex-wrap items-center justify-between gap-2 text-xs transition-all shadow-xs"
+            className="p-3 rounded-2xl bg-gradient-to-r from-rose-500/10 via-emerald-500/10 to-blue-500/10 border border-rose-500/30 dark:border-rose-500/40 flex flex-col gap-2 text-xs transition-all shadow-xs"
           >
-            <div className="flex items-center gap-2.5">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                </span>
 
-              <div className="flex items-center gap-1.5 font-semibold text-rose-700 dark:text-rose-300">
-                <span>মাইক্রোফোন সক্রিয়... কথা বলুন</span>
+                <div className="flex items-center gap-1.5 font-semibold text-rose-700 dark:text-rose-300">
+                  <span>হ্যান্ডস-ফ্রি ভয়েস ইনপুট সক্রিয়... কথা বলুন</span>
+                </div>
+
+                {/* Dynamic Sound Wave visualizer */}
+                <div className="flex items-center gap-0.5 h-4 ml-1">
+                  {[0.4, 0.8, 1, 0.7, 0.5, 0.9, 0.6].map((factor, i) => (
+                    <span
+                      key={i}
+                      className="w-1 bg-rose-500 rounded-full transition-all duration-75"
+                      style={{
+                        height: `${Math.max(4, Math.min(18, (audioLevel || 15) * factor))}px`,
+                      }}
+                    />
+                  ))}
+                </div>
               </div>
 
-              {/* Dynamic Sound Wave visualizer */}
-              <div className="flex items-center gap-0.5 h-4 ml-1">
-                {[0.4, 0.8, 1, 0.7, 0.5, 0.9, 0.6].map((factor, i) => (
-                  <span
-                    key={i}
-                    className="w-1 bg-rose-500 rounded-full transition-all duration-75"
-                    style={{
-                      height: `${Math.max(4, Math.min(18, (audioLevel || 15) * factor))}px`,
-                    }}
-                  />
-                ))}
+              {/* Language selection pills & stop button */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setLanguage('bn-BD')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    language === 'bn-BD'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-white/80 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 hover:border-rose-400'
+                  }`}
+                  title="বাংলা ভাষায় ভয়েস ইনপুট"
+                >
+                  বাংলা (bn-BD)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLanguage('en-US')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    language === 'en-US'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white/80 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 hover:border-blue-400'
+                  }`}
+                  title="English voice dictation"
+                >
+                  English (en-US)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={stopListening}
+                  className="px-3 py-1 rounded-lg bg-stone-800 hover:bg-stone-900 text-white font-medium shadow-xs transition-colors"
+                >
+                  থামুন
+                </button>
               </div>
             </div>
 
-            {/* Voice Command Tips & Language switch */}
-            <div className="flex items-center gap-2 text-[11px]">
-              <span className="hidden sm:inline text-stone-600 dark:text-stone-300 bg-white/70 dark:bg-stone-800/70 px-2 py-0.5 rounded-md border border-stone-200 dark:border-stone-700">
-                🗣️ ভয়েস কমান্ড: শেষে <strong>"পাঠাও"</strong> বললে অটোমেটিক যাবে
+            {/* Interim live recognized text preview */}
+            {interimText && (
+              <div className="px-3 py-2 rounded-xl bg-white/90 dark:bg-stone-900/90 border border-rose-200/80 dark:border-rose-900/40 text-xs text-stone-800 dark:text-stone-200 font-mono flex items-start gap-2 animate-in fade-in">
+                <span className="text-rose-500 font-bold shrink-0 mt-0.5">🎙️</span>
+                <span className="flex-1 break-words italic">"{interimText}"</span>
+              </div>
+            )}
+
+            {/* Tips banner */}
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] text-stone-500 dark:text-stone-400 pt-0.5 border-t border-stone-200/40 dark:border-stone-800/40">
+              <span>🗣️ মুখে যা বলবেন তা সরাসরি টেক্সটবক্সে টাইপ হচ্ছে।</span>
+              <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                হ্যান্ডস-ফ্রি কমান্ড: শেষে <strong>"পাঠাও"</strong> বা <strong>"Send"</strong> বললে মেসেজ চলে যাবে
               </span>
-
-              {/* Language toggle: Bangla / English */}
-              <button
-                id="voice-language-switch-btn"
-                onClick={() => setLanguage((l: VoiceLanguage) => (l === 'bn-BD' ? 'en-US' : 'bn-BD'))}
-                title="ভয়েস ইনপুট ভাষা পরিবর্তন করুন"
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium bg-white dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 hover:border-emerald-500 transition-colors"
-              >
-                <Languages className="w-3 h-3 text-emerald-600" />
-                <span>{language === 'bn-BD' ? 'বাংলা (bn-BD)' : 'English (en-US)'}</span>
-              </button>
-
-              <button
-                onClick={stopListening}
-                className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium shadow-xs transition-colors"
-              >
-                থামুন
-              </button>
             </div>
           </div>
         )}
@@ -432,6 +462,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   )}
                 </motion.button>
               </div>
+
+              {/* Quick Language Toggle Pill (Bengali / English) */}
+              <button
+                id="voice-language-quick-toggle"
+                type="button"
+                onClick={() => setLanguage(language === 'bn-BD' ? 'en-US' : 'bn-BD')}
+                title={`ভয়েস ইনপুট ভাষা: ${language === 'bn-BD' ? 'বাংলা (bn-BD)' : 'English (en-US)'} - পরিবর্তন করতে ক্লিক করুন`}
+                className={`flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-semibold transition-all border ${
+                  language === 'bn-BD'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
+                    : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800 hover:bg-blue-100'
+                }`}
+              >
+                <Languages className="w-3.5 h-3.5" />
+                <span>{language === 'bn-BD' ? 'বাং' : 'EN'}</span>
+              </button>
 
               {input && (
                 <button

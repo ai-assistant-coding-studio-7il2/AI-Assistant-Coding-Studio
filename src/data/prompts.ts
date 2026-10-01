@@ -2,6 +2,15 @@ import { QuickPrompt } from '../types';
 
 export const QUICK_PROMPTS: QuickPrompt[] = [
   {
+    id: 'p-identity-intro',
+    category: 'daily',
+    titleBn: 'আমাদের পরিচয় ও প্ল্যাটফর্ম',
+    titleEn: 'About AI Assistant & Coding Studio',
+    prompt: 'আপনাদের কোম্পানির নাম কী, আপনাকে কে সৃষ্টি করেছে এবং এই AI Assistant প্ল্যাটফর্মে কী কী বিশেষ সুবিধা পাওয়া যায় বিস্তারিত পরিচয় দিন।',
+    descriptionBn: 'কোম্পানি, ডেভেলপার ও প্ল্যাটফর্ম পরিচিতি',
+    icon: 'Sparkles',
+  },
+  {
     id: 'p-citizen-contacts',
     category: 'daily',
     titleBn: 'মোবাইল নাম্বার ও জরুরি হটলাইন',
