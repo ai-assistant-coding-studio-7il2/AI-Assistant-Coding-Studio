@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Play, Code, Copy, Check, ExternalLink, RefreshCw } from 'lucide-react';
+import { X, Play, Code, Copy, Check, ExternalLink, RefreshCw, ArrowLeft } from 'lucide-react';
 
 interface CodePreviewModalProps {
   isOpen: boolean;
@@ -143,9 +143,17 @@ export const CodePreviewModal: React.FC<CodePreviewModalProps> = ({
               {copied ? 'Copied!' : 'Copy'}
             </button>
             <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-md transition-colors cursor-pointer"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ফিরে যান</span>
+            </button>
+            <button
               id="close-preview-modal-btn"
               onClick={onClose}
-              className="p-1.5 text-stone-400 hover:text-stone-200 hover:bg-stone-800 rounded-md transition-colors"
+              className="p-1.5 text-stone-400 hover:text-stone-200 hover:bg-stone-800 rounded-md transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>

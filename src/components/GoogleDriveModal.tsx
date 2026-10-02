@@ -330,7 +330,15 @@ export const GoogleDriveModal: React.FC<GoogleDriveModalProps> = ({
             )}
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all cursor-pointer shadow-xs"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ফিরে যান</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
               title="বন্ধ করুন"
             >
               <X className="w-5 h-5" />

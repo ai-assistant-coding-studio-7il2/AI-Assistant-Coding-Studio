@@ -21,7 +21,8 @@ import {
   Navigation,
   CheckCircle2,
   HelpCircle,
-  Smartphone
+  Smartphone,
+  ArrowLeft
 } from 'lucide-react';
 import {
   EMERGENCY_CONTACTS,
@@ -148,13 +149,23 @@ export const CitizenServicesModal: React.FC<CitizenServicesModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors"
-            title="বন্ধ করুন"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-200/80 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold transition-all cursor-pointer shadow-xs border border-stone-300/60 dark:border-stone-700/60"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ফিরে যান</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+              title="বন্ধ করুন"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Navigation Tabs */}
@@ -722,12 +733,21 @@ export const CitizenServicesModal: React.FC<CitizenServicesModalProps> = ({
               যে কোনো প্রশ্ন বা জরুরি ড্রাফটের জন্য এআই চ্যাটে মেসেজ দিন।
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 text-stone-800 dark:text-stone-200 font-semibold text-xs transition-colors"
-          >
-            বন্ধ করুন
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-stone-850 hover:bg-stone-800 text-stone-200 text-xs font-semibold transition-all cursor-pointer shadow-xs border border-stone-700/60"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>চ্যাটে ফিরে যান (Back)</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-3.5 py-1.5 rounded-xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 text-stone-800 dark:text-stone-200 font-semibold text-xs transition-colors cursor-pointer"
+            >
+              বন্ধ করুন
+            </button>
+          </div>
         </div>
       </div>
     </div>

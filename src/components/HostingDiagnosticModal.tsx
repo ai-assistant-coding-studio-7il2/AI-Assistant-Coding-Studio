@@ -17,7 +17,8 @@ import {
   Zap,
   Layers,
   ShieldCheck,
-  Radio
+  Radio,
+  ArrowLeft
 } from 'lucide-react';
 
 interface HealthData {
@@ -145,13 +146,23 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            id="close-hosting-modal-btn"
-            onClick={onClose}
-            className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-200/80 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold transition-all cursor-pointer shadow-xs border border-stone-300/60 dark:border-stone-700/60"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ফিরে যান</span>
+            </button>
+            <button
+              id="close-hosting-modal-btn"
+              onClick={onClose}
+              className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation */}
@@ -502,17 +513,26 @@ export const HostingDiagnosticModal: React.FC<HostingDiagnosticModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 flex items-center justify-between">
+        <div className="px-5 py-3.5 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-950 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-[11px] text-stone-500">
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>নিরাপদ সার্ভার-সাইড প্রক্সি আর্কিটেকচার</span>
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 transition-colors"
-          >
-            বন্ধ করুন
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-stone-800 hover:bg-stone-700 text-white dark:bg-stone-700 dark:hover:bg-stone-600 transition-colors cursor-pointer shadow-xs"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>চ্যাটে ফিরে যান (Back)</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-stone-800 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-200 transition-colors cursor-pointer"
+            >
+              বন্ধ করুন
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -33,7 +33,8 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
-  Languages
+  Languages,
+  Sliders
 } from 'lucide-react';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
@@ -268,7 +269,7 @@ const YouTubeEmbedCard: React.FC<{
   const musicUrl = `https://music.youtube.com/search?q=${encodeURIComponent(displayTitle)}`;
 
   const embedHost = useNoCookie ? 'www.youtube-nocookie.com' : 'www.youtube.com';
-  const embedUrl = `https://${embedHost}/embed/${videoId}?rel=0&modestbranding=1&playsinline=1`;
+  const embedUrl = `https://${embedHost}/embed/${videoId}?autoplay=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 
   const handleOpenFullscreenPlayer = () => {
     musicPlayer.playVideoId(videoId, displayTitle, {
@@ -337,7 +338,6 @@ const YouTubeEmbedCard: React.FC<{
             href={watchUrl}
             target="_blank"
             rel="noopener noreferrer"
-            referrerPolicy="no-referrer"
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-800 hover:bg-stone-750 text-white font-medium text-[11px] transition-colors shadow-2xs border border-stone-750"
             title="মূল ইউটিউব অ্যাপে ভিডিওটি খুলুন"
           >
@@ -355,6 +355,7 @@ const YouTubeEmbedCard: React.FC<{
           title="YouTube music and video player"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
           className="w-full h-full border-0"
         />
       </div>
@@ -501,7 +502,16 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [speechSpeed, setSpeechSpeed] = useState<number>(1);
+  const [speechSpeed, setSpeechSpeed] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('ai_preferred_tts_speed');
+      return saved ? parseFloat(saved) : 0.85;
+    } catch {
+      return 0.85;
+    }
+  });
+  const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
+  const speedMenuRef = useRef<HTMLDivElement>(null);
   const [activeChunk, setActiveChunk] = useState<number>(0);
   const [totalChunks, setTotalChunks] = useState<number>(0);
   const [detectedVoiceLabel, setDetectedVoiceLabel] = useState<string>('');
@@ -525,6 +535,18 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
   const voiceMenuRef = useRef<HTMLDivElement>(null);
 
+  // Sync speed changes across app
+  useEffect(() => {
+    const handleSpeedEvent = (e: any) => {
+      if (e?.detail && typeof e.detail === 'number') {
+        setSpeechSpeed(e.detail);
+        ttsPlayerRef.current?.updateOptions({ speed: e.detail });
+      }
+    };
+    window.addEventListener('tts-speed-changed', handleSpeedEvent);
+    return () => window.removeEventListener('tts-speed-changed', handleSpeedEvent);
+  }, []);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const loadVoices = () => {
@@ -545,6 +567,9 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     const handleClickOutside = (e: MouseEvent) => {
       if (voiceMenuRef.current && !voiceMenuRef.current.contains(e.target as Node)) {
         setIsVoiceMenuOpen(false);
+      }
+      if (speedMenuRef.current && !speedMenuRef.current.contains(e.target as Node)) {
+        setIsSpeedMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -728,8 +753,13 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   };
 
   const handleSpeedChange = (speed: number) => {
-    setSpeechSpeed(speed);
-    ttsPlayerRef.current?.updateOptions({ speed });
+    const clamped = Math.round(Math.max(0.5, Math.min(2.0, speed)) * 100) / 100;
+    setSpeechSpeed(clamped);
+    ttsPlayerRef.current?.updateOptions({ speed: clamped });
+    try {
+      localStorage.setItem('ai_preferred_tts_speed', clamped.toString());
+      window.dispatchEvent(new CustomEvent('tts-speed-changed', { detail: clamped }));
+    } catch (_) {}
   };
 
   const handleJumpChunk = (direction: 'prev' | 'next') => {
@@ -1240,29 +1270,83 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                     )}
                   </div>
 
-                  {/* Playback Speed Selector (0.75x, 1x, 1.25x, 1.5x, 2x) */}
-                  <div 
-                    className="flex items-center gap-0.5 pl-1 pr-0.5 border-l border-stone-200 dark:border-stone-700" 
-                    title="প্লেব্যাক স্পিড / পড়ার গতি নির্বাচন করুন"
-                  >
-                    {[0.75, 1, 1.25, 1.5, 2].map((speed) => {
-                      const isSelected = speechSpeed === speed;
-                      return (
-                        <button
-                          key={speed}
-                          id={`ai-speed-${speed}x-${message.id}`}
-                          onClick={() => handleSpeedChange(speed)}
-                          title={`গতি ${speed}x সেট করুন`}
-                          className={`px-1.5 py-0.5 text-[11px] rounded transition-all font-mono cursor-pointer ${
-                            isSelected
-                              ? 'bg-white dark:bg-stone-900 text-emerald-600 dark:text-emerald-400 font-bold shadow-2xs border border-stone-200/80 dark:border-stone-700'
-                              : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 hover:bg-stone-200/60 dark:hover:bg-stone-700/50'
-                          }`}
-                        >
-                          {speed}x
-                        </button>
-                      );
-                    })}
+                  {/* Interactive TTS Speed Control Setting */}
+                  <div className="relative" ref={speedMenuRef}>
+                    <button
+                      type="button"
+                      id={`ai-speed-select-btn-${message.id}`}
+                      onClick={() => setIsSpeedMenuOpen(!isSpeedMenuOpen)}
+                      title={`সহকারীর পড়ার গতি নির্ধারণ করুন (বর্তমান গতি: ${speechSpeed.toFixed(2)}x)`}
+                      className={`flex items-center gap-1 px-2 py-1 text-[11px] rounded transition-all border-l border-stone-200 dark:border-stone-700 cursor-pointer ${
+                        isSpeedMenuOpen
+                          ? 'bg-white dark:bg-stone-900 text-emerald-600 dark:text-emerald-400 font-bold shadow-2xs'
+                          : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-200/60 dark:hover:bg-stone-700/50'
+                      }`}
+                    >
+                      <Gauge className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="font-mono font-bold">{speechSpeed.toFixed(2)}x</span>
+                      <ChevronDown className={`w-2.5 h-2.5 transition-transform opacity-70 ${isSpeedMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Speed Control Popover Panel */}
+                    {isSpeedMenuOpen && (
+                      <div className="absolute bottom-full mb-1.5 right-0 z-50 w-64 p-3 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-750 shadow-2xl text-xs animate-in fade-in zoom-in-95 duration-150 space-y-3">
+                        <div className="flex items-center justify-between border-b border-stone-100 dark:border-stone-800 pb-2">
+                          <span className="font-bold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
+                            <Gauge className="w-3.5 h-3.5 text-emerald-500" />
+                            পড়ার গতি (TTS Speed)
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            {speechSpeed.toFixed(2)}x
+                          </span>
+                        </div>
+
+                        {/* Speed Range Slider */}
+                        <div className="space-y-1.5">
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="2.0"
+                            step="0.05"
+                            value={speechSpeed}
+                            onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                            className="w-full h-1.5 bg-stone-200 dark:bg-stone-700 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                          />
+                          <div className="flex justify-between text-[9px] text-stone-400 font-mono">
+                            <span>0.5x (ধীর)</span>
+                            <span className="text-emerald-500 font-bold">0.85x (প্রাকৃতিক)</span>
+                            <span>1.0x</span>
+                            <span>2.0x (দ্রুত)</span>
+                          </div>
+                        </div>
+
+                        {/* Quick Presets */}
+                        <div className="grid grid-cols-4 gap-1 pt-1">
+                          {[
+                            { val: 0.75, lbl: '0.75x' },
+                            { val: 0.85, lbl: '0.85x' },
+                            { val: 1.0, lbl: '1.0x' },
+                            { val: 1.25, lbl: '1.25x' },
+                          ].map((preset) => {
+                            const isSelected = Math.abs(speechSpeed - preset.val) < 0.02;
+                            return (
+                              <button
+                                key={preset.val}
+                                type="button"
+                                onClick={() => handleSpeedChange(preset.val)}
+                                className={`py-1 rounded-lg text-center font-mono text-[11px] transition-all cursor-pointer border ${
+                                  isSelected
+                                    ? 'bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs'
+                                    : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:border-emerald-500/50'
+                                }`}
+                              >
+                                {preset.lbl}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -1350,7 +1434,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
 
                   {/* Playback Speed selector while speaking */}
                   <div className="flex items-center gap-0.5 pl-1.5 border-l border-emerald-200 dark:border-emerald-800">
-                    {[0.75, 1, 1.25, 1.5, 2].map((speed) => {
+                    {[0.75, 0.85, 1, 1.25, 1.5].map((speed) => {
                       const isSelected = speechSpeed === speed;
                       return (
                         <button

@@ -17,7 +17,8 @@ import {
   Search,
   Radio,
   RefreshCw,
-  HelpCircle
+  HelpCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { extractYouTubeVideoId } from '../utils/youtube';
@@ -228,6 +229,13 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
             </button>
             <button
               onClick={closePlayer}
+              className="p-1.5 rounded-lg bg-stone-850 hover:bg-stone-800 text-stone-300 hover:text-white transition-colors cursor-pointer"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={closePlayer}
               className="p-1.5 rounded-lg bg-stone-850 hover:bg-rose-950/80 text-stone-400 hover:text-rose-400 transition-colors cursor-pointer"
               title="প্লেয়ার বন্ধ করুন"
             >
@@ -239,6 +247,15 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
         /* Fullscreen Header */
         <header className="relative z-10 px-4 sm:px-6 py-3.5 border-b border-stone-800/80 bg-stone-950/80 backdrop-blur-md flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={closePlayer}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-850 hover:bg-stone-800 text-stone-200 text-xs font-semibold border border-stone-750 transition-all cursor-pointer shadow-xs shrink-0"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ফিরে যান</span>
+            </button>
+
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-600 to-rose-700 text-white flex items-center justify-center shadow-lg shadow-red-600/30 shrink-0">
               <Youtube className="w-5 h-5" />
             </div>
@@ -348,6 +365,7 @@ export const MusicPlayerModal: React.FC<MusicPlayerModalProps> = ({
             title={cleanTitle}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
             className="w-full h-full border-0"
           />
         </div>

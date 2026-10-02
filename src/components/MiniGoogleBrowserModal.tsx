@@ -24,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
+  ArrowLeft,
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
@@ -535,6 +536,15 @@ export const MiniGoogleBrowserModal: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
+              onClick={closeBrowser}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-200 text-xs font-semibold border border-stone-700 transition-colors cursor-pointer"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ফিরে যান</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setIsFullscreen(!isFullscreen)}
               className="p-1.5 rounded-lg bg-stone-800/80 hover:bg-stone-750 text-stone-300 transition-colors"
               title={isFullscreen ? 'রিস্টোর করুন' : 'ফুলস্ক্রিন করুন'}
@@ -745,10 +755,11 @@ export const MiniGoogleBrowserModal: React.FC = () => {
                 <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-stone-800 shadow-2xl">
                   <iframe
                     key={`yt-${currentVideoId}-${refreshKey}`}
-                    src={`https://www.youtube.com/embed/${currentVideoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                    src={`https://www.youtube.com/embed/${currentVideoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
                     title="YouTube Video Player"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
+                    referrerPolicy="strict-origin-when-cross-origin"
                     className="w-full h-full border-0"
                   />
                 </div>

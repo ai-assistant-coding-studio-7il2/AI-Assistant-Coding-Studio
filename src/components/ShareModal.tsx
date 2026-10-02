@@ -9,7 +9,8 @@ import {
   ExternalLink,
   MessageSquare,
   Sparkles,
-  Mail
+  Mail,
+  ArrowLeft
 } from 'lucide-react';
 import { shareToPlatform, triggerNativeShare, copyToClipboard, getAppShareUrl, ShareOptions } from '../utils/shareUtils';
 
@@ -174,13 +175,23 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            id="close-share-modal-btn"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold transition-all cursor-pointer shadow-xs border border-stone-200 dark:border-stone-700"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ফিরে যান</span>
+            </button>
+            <button
+              id="close-share-modal-btn"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}

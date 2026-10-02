@@ -23,20 +23,27 @@ export class ContinuousTTSPlayer {
   private isSpeaking = false;
   private isPaused = false;
   private isCancelled = false;
-  private speed = 1.0;
+  private speed = 0.85; // Natural, calm Bengali & English pace (never rushed)
   private options: TTSOptions = {};
 
-  // HTML5 Audio playback state
+  // HTML5 Audio playback state (persistent shared element unlocks mobile audio gesture)
+  private sharedAudio: HTMLAudioElement | null = null;
   private currentAudio: HTMLAudioElement | null = null;
   private nextAudioPreload: HTMLAudioElement | null = null;
 
   // Web Speech API fallback state
   private activeUtterance: SpeechSynthesisUtterance | null = null;
   private watchdogTimer: any = null;
+  private consecutiveErrorCount = 0;
 
   constructor(options: TTSOptions = {}) {
     this.options = options;
-    this.speed = options.speed || 1.0;
+    this.speed = options.speed || 0.85;
+    if (typeof Audio !== 'undefined') {
+      try {
+        this.sharedAudio = new Audio();
+      } catch (_) {}
+    }
   }
 
   public updateOptions(newOptions: Partial<TTSOptions>) {
@@ -45,6 +52,9 @@ export class ContinuousTTSPlayer {
       this.speed = newOptions.speed;
       if (this.currentAudio) {
         this.currentAudio.playbackRate = this.speed;
+      }
+      if (this.sharedAudio) {
+        this.sharedAudio.playbackRate = this.speed;
       }
     }
   }
@@ -306,38 +316,43 @@ export class ContinuousTTSPlayer {
   private playViaAudioElement(chunkText: string) {
     try {
       const url = this.getAudioUrl(chunkText);
-      const audio = this.nextAudioPreload && this.nextAudioPreload.src.includes(encodeURIComponent(chunkText.slice(0, 30)))
-        ? this.nextAudioPreload
-        : new Audio(url);
-
+      const audio = this.sharedAudio || new Audio();
+      this.sharedAudio = audio;
       this.currentAudio = audio;
-      this.nextAudioPreload = null;
+
+      audio.src = url;
       audio.playbackRate = this.speed;
 
       // Preload the next chunk immediately for seamless zero-gap transitions
       this.preloadNextChunk(this.currentIndex + 1);
 
+      audio.onplay = () => {
+        this.consecutiveErrorCount = 0; // Successfully started playing
+      };
+
       audio.onended = () => {
         if (this.isCancelled) return;
+        this.consecutiveErrorCount = 0;
         this.options.onChunkEnd?.(this.currentIndex, this.chunks.length);
         this.currentIndex++;
         this.playCurrentChunk();
       };
 
+      const handleFallbackToSpeech = () => {
+        if (this.isCancelled) return;
+        console.warn('Audio stream fallback to SpeechSynthesis for chunk:', this.currentIndex);
+        this.playViaSpeechSynthesis(chunkText);
+      };
+
       audio.onerror = () => {
-        console.warn('Natural TTS audio stream notice, falling back to Web Speech API...');
-        if (!this.isCancelled) {
-          this.playViaSpeechSynthesis(chunkText);
-        }
+        handleFallbackToSpeech();
       };
 
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
-          console.warn('Audio play notice, switching to browser TTS:', err);
-          if (!this.isCancelled) {
-            this.playViaSpeechSynthesis(chunkText);
-          }
+          console.warn('Audio play notice, switching to browser TTS:', err?.message || err);
+          handleFallbackToSpeech();
         });
       }
     } catch (err) {
@@ -347,7 +362,7 @@ export class ContinuousTTSPlayer {
 
   /**
    * Method 2: Resilient Web Speech API fallback.
-   * Fixed GC reference and watchdog timer.
+   * Fixed GC reference, watchdog timer, and anti-cascading error protection.
    */
   private playViaSpeechSynthesis(chunkText: string) {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -359,7 +374,8 @@ export class ContinuousTTSPlayer {
     try {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(chunkText);
-      utterance.rate = this.speed;
+      // Calm, comfortable reading pace for Bengali
+      utterance.rate = Math.max(0.75, Math.min(this.speed, 1.2));
       utterance.pitch = 1.0;
 
       // Retain strong reference to prevent GC bug in Chromium
@@ -398,6 +414,11 @@ export class ContinuousTTSPlayer {
       }
 
       let handled = false;
+
+      utterance.onstart = () => {
+        this.consecutiveErrorCount = 0; // speech synthesis is speaking
+      };
+
       const advance = () => {
         if (handled || this.isCancelled) return;
         handled = true;
@@ -416,13 +437,28 @@ export class ContinuousTTSPlayer {
 
       utterance.onerror = (e) => {
         if (this.isCancelled) return;
-        if (e.error !== 'interrupted' && e.error !== 'canceled') {
-          console.warn('Speech synthesis chunk event:', e.error);
+        if (e.error === 'interrupted' || e.error === 'canceled') {
+          return;
         }
-        advance();
+        console.warn('Speech synthesis chunk event:', e.error);
+        this.consecutiveErrorCount++;
+
+        // Anti-runaway guard: If 2 chunks fail consecutively, stop immediately instead of rapid skipping
+        if (this.consecutiveErrorCount >= 2) {
+          this.stop();
+          this.options.onError?.('স্পিচ প্লেব্যাকে সাময়িক সমস্যা হয়েছে। ব্রাউজারের বাংলা ভয়েস চেক করুন।');
+          return;
+        }
+
+        // Throttle fallback retry so text doesn't flash by in milliseconds
+        setTimeout(() => {
+          if (!this.isCancelled) {
+            advance();
+          }
+        }, 500);
       };
 
-      // Watchdog: If browser TTS hangs on a chunk for more than 12s, advance safely
+      // Watchdog: If browser TTS hangs on a chunk for more than 14s, advance safely
       this.watchdogTimer = setTimeout(() => {
         if (!handled && !this.isCancelled) {
           if (window.speechSynthesis.paused) {
@@ -431,7 +467,7 @@ export class ContinuousTTSPlayer {
             advance();
           }
         }
-      }, 12000);
+      }, 14000);
 
       window.speechSynthesis.speak(utterance);
       if (window.speechSynthesis.paused) {

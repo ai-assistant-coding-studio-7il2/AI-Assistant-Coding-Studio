@@ -40,6 +40,7 @@ import { MusicPlayerModal } from './components/MusicPlayerModal';
 import { MiniBrowserProvider } from './context/MiniBrowserContext';
 import { MiniGoogleBrowserModal } from './components/MiniGoogleBrowserModal';
 import { GoogleDriveModal } from './components/GoogleDriveModal';
+import { TTSSettingsModal } from './components/TTSSettingsModal';
 import { LandingPageVideoShowcase } from './components/LandingPageVideoShowcase';
 import { useAuth } from './context/AuthContext';
 import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
@@ -102,6 +103,7 @@ export default function App() {
   const [liveLocationModalOpen, setLiveLocationModalOpen] = useState(false);
   const [isGoogleDriveOpen, setIsGoogleDriveOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [ttsSettingsModalOpen, setTtsSettingsModalOpen] = useState(false);
   const locationState = useLiveLocation();
   const [sessionToExport, setSessionToExport] = useState<ChatSession | null>(null);
 
@@ -753,6 +755,7 @@ export default function App() {
         onOpenCitizenServices={() => setCitizenModalOpen(true)}
         onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
         onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
+        onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
         onOpenShare={handleOpenShareModal}
         onSelectMode={setMode}
         currentMode={mode}
@@ -767,6 +770,7 @@ export default function App() {
           onOpenCitizenServices={() => setCitizenModalOpen(true)}
           onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
           onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
+          onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
           onNewChat={handleNewChat}
           onClearChat={handleClearChat}
           onExportChat={handleExportChat}
@@ -1197,6 +1201,12 @@ export default function App() {
 
       {/* In-App Mini Google Web Browser & Music Player Modal */}
       <MiniGoogleBrowserModal />
+
+      {/* Text-to-Speech Engine Speed & Voice Settings Modal */}
+      <TTSSettingsModal
+        isOpen={ttsSettingsModalOpen}
+        onClose={() => setTtsSettingsModalOpen(false)}
+      />
 
       {/* PWA Offline Indicator */}
       <OfflineIndicator />

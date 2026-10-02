@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   RefreshCw,
   Key,
-  ShieldCheck
+  ShieldCheck,
+  ArrowLeft
 } from 'lucide-react';
 import { ARCHITECTURE_GUIDE } from '../data/prompts';
 import apiArchitectureImg from '../assets/images/api_architecture_graphic_1790066692425.jpg';
@@ -93,13 +94,23 @@ export const ArchitectureModal: React.FC<ArchitectureModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            id="close-architecture-modal-btn"
-            onClick={onClose}
-            className="p-2 text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-200/80 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold transition-all cursor-pointer shadow-xs border border-stone-300/60 dark:border-stone-700/60"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ফিরে যান</span>
+            </button>
+            <button
+              id="close-architecture-modal-btn"
+              onClick={onClose}
+              className="p-2 text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Selection */}
@@ -419,23 +430,32 @@ export const ArchitectureModal: React.FC<ArchitectureModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/80">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/80">
           <p className="text-xs text-stone-700 dark:text-stone-300">
             এই অ্যাপটি পথ ১-এর একটি বাস্তব ও কর্মক্ষম উদাহরণ (React + Express + Gemini + Google Search)।
           </p>
-          {onSelectPrompt && (
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              id="ask-assistant-about-arch-btn"
-              onClick={() => {
-                onSelectPrompt('তুমি কীভাবে তৈরি হয়েছ এবং একজন ডেভেলপার হিসেবে আমি কীভাবে তোমার মতো একটি ফুল-স্ট্যাক AI অ্যাসিস্ট্যান্ট প্রজেক্ট স্ক্র্যাচ থেকে শুরু করতে পারি? স্টেপ-বাই-স্টেপ গাইড দাও।');
-                onClose();
-              }}
-              className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-white text-white dark:text-stone-900 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+              onClick={onClose}
+              className="px-3.5 py-2 rounded-xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <span>বিস্তারিত গাইড জিজ্ঞাসা করো</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>চ্যাটে ফিরে যান (Back)</span>
             </button>
-          )}
+            {onSelectPrompt && (
+              <button
+                id="ask-assistant-about-arch-btn"
+                onClick={() => {
+                  onSelectPrompt('তুমি কীভাবে তৈরি হয়েছ এবং একজন ডেভেলপার হিসেবে আমি কীভাবে তোমার মতো একটি ফুল-স্ট্যাক AI অ্যাসিস্ট্যান্ট প্রজেক্ট স্ক্র্যাচ থেকে শুরু করতে পারি? স্টেপ-বাই-স্টেপ গাইড দাও।');
+                  onClose();
+                }}
+                className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-white text-white dark:text-stone-900 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+              >
+                <span>বিস্তারিত গাইড জিজ্ঞাসা করো</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

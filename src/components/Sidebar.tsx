@@ -24,7 +24,9 @@ import {
   Globe,
   CheckCircle2,
   ChevronRight,
-  Filter
+  Filter,
+  Volume2,
+  Gauge
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -47,6 +49,7 @@ interface SidebarProps {
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
   onOpenGoogleDrive?: () => void;
+  onOpenTTSSettings?: () => void;
   onOpenShare?: (config?: { shareType?: 'app' | 'session' }) => void;
   onSelectMode: (mode: AssistantMode) => void;
   currentMode: AssistantMode;
@@ -66,6 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCitizenServices,
   onOpenFreelanceAgent,
   onOpenGoogleDrive,
+  onOpenTTSSettings,
   onOpenShare,
   onSelectMode,
   currentMode,
@@ -383,6 +387,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     <ChevronRight className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                   </button>
+
+                  {/* Text-to-Speech Speed & Voice Settings */}
+                  {onOpenTTSSettings && (
+                    <button
+                      id="sidebar-prog-tts-settings"
+                      onClick={() => {
+                        onOpenTTSSettings();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-purple-50/70 hover:bg-purple-100/80 dark:bg-purple-950/30 dark:hover:bg-purple-950/60 border border-purple-300/50 dark:border-purple-800/50 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <Volume2 className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-purple-950 dark:text-purple-200 truncate flex items-center gap-1.5">
+                            <span>পড়ার গতি ও ভয়েস কন্ট্রোল</span>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-purple-500/20 text-purple-700 dark:text-purple-300">TTS</span>
+                          </p>
+                          <p className="text-[10px] text-purple-700/80 dark:text-purple-400/80 truncate">
+                            সহকারীর উত্তর পড়ার গতি ও কণ্ঠ সেটিংস
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
 
                   {/* Share App Modal */}
                   {onOpenShare && (

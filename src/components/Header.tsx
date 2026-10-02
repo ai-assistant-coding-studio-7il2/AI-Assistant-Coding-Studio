@@ -23,7 +23,9 @@ import {
   ShieldCheck,
   Youtube,
   Bot,
-  HardDrive
+  HardDrive,
+  Volume2,
+  Gauge
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -39,6 +41,7 @@ interface HeaderProps {
   onOpenCitizenServices?: () => void;
   onOpenFreelanceAgent?: () => void;
   onOpenGoogleDrive?: () => void;
+  onOpenTTSSettings?: () => void;
   onNewChat: () => void;
   onClearChat: () => void;
   onExportChat: () => void;
@@ -61,6 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCitizenServices,
   onOpenFreelanceAgent,
   onOpenGoogleDrive,
+  onOpenTTSSettings,
   onNewChat,
   onClearChat,
   onExportChat,
@@ -305,6 +309,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Server className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span className="hidden sm:inline">এআই স্ট্যাটাস ও হোস্টিং</span>
+          </button>
+        )}
+
+        {onOpenTTSSettings && (
+          <button
+            id="open-tts-settings-header-btn"
+            onClick={onOpenTTSSettings}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-stone-700 transition-colors shadow-xs cursor-pointer"
+            title="সহকারীর পড়ার গতি ও কণ্ঠ সেটিংস (TTS Speed & Voice Settings)"
+          >
+            <Volume2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden xl:inline">স্পিচ গতি</span>
           </button>
         )}
 

@@ -19,7 +19,8 @@ import {
   Send,
   Building,
   Maximize2,
-  Minimize2
+  Minimize2,
+  ArrowLeft
 } from 'lucide-react';
 import { UseLiveLocationReturn } from '../hooks/useLiveLocation';
 
@@ -219,6 +220,15 @@ export const LiveLocationModal: React.FC<LiveLocationModalProps> = ({
                 className="p-1.5 rounded-lg text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors disabled:opacity-50 cursor-pointer"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-emerald-600' : ''}`} />
+              </button>
+
+              <button
+                onClick={onClose}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-semibold border border-stone-200 dark:border-stone-700 transition-colors cursor-pointer"
+                title="চ্যাটে ফিরে যান (Back)"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>ফিরে যান</span>
               </button>
 
               <button

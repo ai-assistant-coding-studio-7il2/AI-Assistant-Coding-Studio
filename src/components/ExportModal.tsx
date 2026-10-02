@@ -10,7 +10,8 @@ import {
   Calendar, 
   MessageSquare, 
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { ChatSession } from '../types';
 import { exportChatAsPDF, exportChatAsJSON, exportChatAsMarkdown } from '../utils/exportChat';
@@ -107,13 +108,23 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
               </p>
             </div>
           </div>
-          <button
-            id="close-export-modal-btn"
-            onClick={onClose}
-            className="p-2 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold transition-all cursor-pointer shadow-xs border border-stone-200 dark:border-stone-700"
+              title="চ্যাটে ফিরে যান (Back)"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>ফিরে যান</span>
+            </button>
+            <button
+              id="close-export-modal-btn"
+              onClick={onClose}
+              className="p-2 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Current Chat Summary Card */}
@@ -268,13 +279,22 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, sessi
 
         {/* Footer */}
         <div className="p-4 bg-stone-50 dark:bg-stone-950/60 border-t border-stone-200 dark:border-stone-800 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
-          <span>🔒 সমস্ত এক্সপোর্ট সরাসরি আপনার ব্রাউজারে তৈরি ও সেভ হয়।</span>
-          <button
-            onClick={onClose}
-            className="px-3.5 py-1.5 rounded-lg font-medium text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors"
-          >
-            বন্ধ করুন
-          </button>
+          <span className="truncate mr-2">🔒 সমস্ত এক্সপোর্ট সরাসরি আপনার ব্রাউজারে সুরক্ষিত থাকে।</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-white dark:bg-stone-700 dark:hover:bg-stone-600 font-medium transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>চ্যাটে ফিরে যান (Back)</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-lg font-medium text-stone-700 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+            >
+              বন্ধ করুন
+            </button>
+          </div>
         </div>
       </div>
     </div>
