@@ -25,10 +25,26 @@ import {
   ChevronRight,
   History,
   ArrowLeft,
+  Volume2,
+  VolumeX,
+  ShieldCheck,
+  MessageSquare,
+  Send,
+  Link2,
+  ChevronDown,
+  ChevronUp,
+  Tag,
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
+import { ContinuousTTSPlayer } from '../utils/textToSpeech';
+import { ChatSession } from '../types';
+
+export interface MiniGoogleBrowserModalProps {
+  activeSession?: ChatSession;
+  onInsertIntoChat?: (text: string) => void;
+}
 
 export interface YouTubeSearchResult {
   videoId: string;
@@ -80,7 +96,10 @@ interface HistoryEntry {
   lyricsData?: LyricsData | null;
 }
 
-export const MiniGoogleBrowserModal: React.FC = () => {
+export const MiniGoogleBrowserModal: React.FC<MiniGoogleBrowserModalProps> = ({
+  activeSession,
+  onInsertIntoChat,
+}) => {
   const {
     isOpen,
     closeBrowser,
@@ -93,6 +112,7 @@ export const MiniGoogleBrowserModal: React.FC = () => {
     activeTab,
     setActiveTab,
     openYouTubeInBrowser,
+    chatContext,
   } = useMiniBrowser();
 
   const [inputUrlOrQuery, setInputUrlOrQuery] = useState('');
@@ -104,6 +124,21 @@ export const MiniGoogleBrowserModal: React.FC = () => {
   const [isLyricsLoading, setIsLyricsLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Chat context research states
+  const [isChatContextOpen, setIsChatContextOpen] = useState(true);
+  const [insertedFeedback, setInsertedFeedback] = useState<string | null>(null);
+
+  // Web tab proxy & reader mode states
+  const [webViewMode, setWebViewMode] = useState<'proxy' | 'reader'>('proxy');
+  const [readerData, setReaderData] = useState<{ title: string; domain: string; content: string; url: string } | null>(null);
+  const [isReaderLoading, setIsReaderLoading] = useState(false);
+  const [isReaderSpeaking, setIsReaderSpeaking] = useState(false);
+
+  // Track last handled query & url to avoid unnecessary repeated searches
+  const lastHandledQueryRef = useRef<string | null>(null);
+  const lastHandledUrlRef = useRef<string | null>(null);
+  const lastHandledVideoRef = useRef<string | null>(null);
 
   const musicPlayer = useMusicPlayer();
   const [ytVideos, setYtVideos] = useState<YouTubeSearchResult[]>([]);
@@ -117,6 +152,115 @@ export const MiniGoogleBrowserModal: React.FC = () => {
   // Navigation History Stack
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
+
+  // Derive research topics and URLs from either passed activeSession or chatContext
+  const currentChatResearch = React.useMemo(() => {
+    const sessionTitle = activeSession?.title && activeSession.title !== 'নতুন কথোপকথন'
+      ? activeSession.title
+      : chatContext?.sessionTitle;
+
+    const topicSet = new Set<string>();
+    const urlList: Array<{ url: string; title: string }> = [];
+    const seenUrls = new Set<string>();
+
+    if (sessionTitle) topicSet.add(sessionTitle);
+    if (chatContext?.currentPrompt) topicSet.add(chatContext.currentPrompt);
+    if (chatContext?.topics) {
+      chatContext.topics.forEach((t) => topicSet.add(t));
+    }
+    if (chatContext?.urls) {
+      chatContext.urls.forEach((u) => {
+        if (!seenUrls.has(u.url)) {
+          seenUrls.add(u.url);
+          urlList.push({ url: u.url, title: u.title || new URL(u.url).hostname });
+        }
+      });
+    }
+
+    if (activeSession?.messages) {
+      activeSession.messages.forEach((msg) => {
+        // Grounding chunks from Gemini
+        msg.groundingChunks?.forEach((chunk) => {
+          if (chunk.web?.uri && !seenUrls.has(chunk.web.uri)) {
+            seenUrls.add(chunk.web.uri);
+            urlList.push({
+              url: chunk.web.uri,
+              title: chunk.web.title || new URL(chunk.web.uri).hostname,
+            });
+          }
+        });
+
+        // Search queries from Gemini
+        msg.searchQueries?.forEach((sq) => {
+          if (sq && sq.trim()) topicSet.add(sq.trim());
+        });
+
+        // Any URLs in message text
+        const foundUrls = msg.text.match(/https?:\/\/[^\s)<>"']+/g);
+        if (foundUrls) {
+          foundUrls.forEach((u) => {
+            const cleanU = u.replace(/[.,;!?]+$/, '');
+            if (!seenUrls.has(cleanU)) {
+              try {
+                seenUrls.add(cleanU);
+                urlList.push({ url: cleanU, title: new URL(cleanU).hostname });
+              } catch (_) {}
+            }
+          });
+        }
+
+        // Recent user questions (topics discussed)
+        if (msg.role === 'user' && msg.text.trim()) {
+          const firstLine = msg.text.trim().split('\n')[0];
+          if (firstLine.length > 4 && firstLine.length < 80) {
+            topicSet.add(firstLine);
+          }
+        }
+      });
+    }
+
+    const topics = Array.from(topicSet).slice(0, 10);
+    const urls = urlList.slice(0, 10);
+
+    return {
+      title: sessionTitle,
+      topics,
+      urls,
+      hasContext: Boolean(sessionTitle || topics.length > 0 || urls.length > 0),
+    };
+  }, [activeSession, chatContext]);
+
+  const handleInsertReference = (title: string, url: string, snippet?: string) => {
+    const referenceText = snippet 
+      ? `> **[${title}](${url})**\n> ${snippet}\n`
+      : `[${title}](${url})`;
+
+    if (onInsertIntoChat) {
+      onInsertIntoChat(referenceText);
+      setInsertedFeedback('চ্যাটে রেফারেন্স যোগ হয়েছে!');
+      setTimeout(() => setInsertedFeedback(null), 2500);
+    } else {
+      navigator.clipboard.writeText(referenceText);
+      setInsertedFeedback('রেফারেন্স লিঙ্ক কপি হয়েছে!');
+      setTimeout(() => setInsertedFeedback(null), 2500);
+    }
+  };
+
+  const handleSelectChatTopic = (topic: string) => {
+    setInputUrlOrQuery(topic);
+    setActiveTab('search');
+    handleSearch(topic, true);
+  };
+
+  const handleSelectChatUrl = (url: string) => {
+    setInputUrlOrQuery(url);
+    setActiveUrl(url);
+    setActiveTab('web');
+    pushHistory({
+      tab: 'web',
+      urlOrQuery: url,
+    });
+  };
 
   // Dedicated YouTube searcher
   const handleSearchYouTube = useCallback(async (term: string) => {
@@ -165,7 +309,8 @@ export const MiniGoogleBrowserModal: React.FC = () => {
   // Sync state when modal opens or external query/videoId is passed
   useEffect(() => {
     if (isOpen) {
-      if (activeVideoId) {
+      if (activeVideoId && activeVideoId !== lastHandledVideoRef.current) {
+        lastHandledVideoRef.current = activeVideoId;
         setNavVideoId(activeVideoId);
         setNavVideoTitle(activeVideoTitle || 'ইউটিউব গান / ভিডিও');
         const url = `https://www.youtube.com/watch?v=${activeVideoId}`;
@@ -178,11 +323,13 @@ export const MiniGoogleBrowserModal: React.FC = () => {
         };
         pushHistory(entry);
         handleSearchYouTube(activeVideoTitle || 'Zack Knight Dheere');
-      } else if (searchQuery) {
+      } else if (searchQuery && searchQuery !== lastHandledQueryRef.current) {
+        lastHandledQueryRef.current = searchQuery;
         setInputUrlOrQuery(searchQuery);
         handleSearch(searchQuery, true);
         handleSearchYouTube(searchQuery);
-      } else if (activeUrl && activeUrl !== 'https://www.google.com') {
+      } else if (activeUrl && activeUrl !== 'https://www.google.com' && activeUrl !== lastHandledUrlRef.current) {
+        lastHandledUrlRef.current = activeUrl;
         setInputUrlOrQuery(activeUrl);
         const entry: HistoryEntry = {
           tab: 'web',
@@ -201,8 +348,72 @@ export const MiniGoogleBrowserModal: React.FC = () => {
         handleSearch('Google Search', false);
         handleSearchYouTube('Zack Knight Dheere');
       }
+    } else {
+      lastHandledQueryRef.current = null;
+      lastHandledUrlRef.current = null;
+      lastHandledVideoRef.current = null;
     }
-  }, [isOpen, activeVideoId, searchQuery, handleSearchYouTube]);
+  }, [isOpen, activeVideoId, searchQuery, activeUrl, handleSearchYouTube]);
+
+  const loadReaderContent = useCallback(async (urlToRead: string) => {
+    if (!urlToRead) return;
+    setIsReaderLoading(true);
+    try {
+      const res = await fetch(`/api/proxy/reader?url=${encodeURIComponent(urlToRead)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setReaderData(data);
+      } else {
+        setReaderData({
+          title: 'ওয়েব পেজ',
+          domain: new URL(urlToRead).hostname,
+          content: 'ওয়েব পেজের টেক্সট এক্সট্র্যাক্ট করা যায়নি। সম্পূর্ণ পেজ দেখতে লাইভ ওয়েব মোড ব্যবহার করুন।',
+          url: urlToRead,
+        });
+      }
+    } catch {
+      setReaderData({
+        title: 'ওয়েব পেজ',
+        domain: urlToRead,
+        content: 'লোড করতে সমস্যা হয়েছে। লাইভ ব্রাউজারে অথবা নতুন ট্যাবে খুলুন।',
+        url: urlToRead,
+      });
+    } finally {
+      setIsReaderLoading(false);
+    }
+  }, []);
+
+  const readerPlayerRef = useRef<ContinuousTTSPlayer | null>(null);
+
+  useEffect(() => {
+    if (activeTab === 'web' && webViewMode === 'reader' && activeUrl) {
+      loadReaderContent(activeUrl);
+    }
+  }, [activeTab, webViewMode, activeUrl, loadReaderContent]);
+
+  useEffect(() => {
+    return () => {
+      readerPlayerRef.current?.stop();
+    };
+  }, []);
+
+  const handleToggleSpeakReader = () => {
+    if (isReaderSpeaking) {
+      readerPlayerRef.current?.stop();
+      setIsReaderSpeaking(false);
+      return;
+    }
+    if (!readerData?.content) return;
+    const speed = parseFloat(localStorage.getItem('ai_preferred_tts_speed') || '0.85');
+    readerPlayerRef.current = new ContinuousTTSPlayer({
+      speed,
+      onStateChange: (speaking) => setIsReaderSpeaking(speaking),
+      onComplete: () => setIsReaderSpeaking(false),
+      onError: () => setIsReaderSpeaking(false),
+    });
+    setIsReaderSpeaking(true);
+    readerPlayerRef.current.play(readerData.content, 0);
+  };
 
   const handleSearch = async (queryText: string, addToHistory: boolean = true) => {
     const q = queryText.trim();
@@ -403,12 +614,33 @@ export const MiniGoogleBrowserModal: React.FC = () => {
       return;
     }
 
+    // If it's a google domain, switch to search tab
+    if (/^https?:\/\/(?:www\.)?google\.[a-z.]+(?:\/)?$/i.test(val)) {
+      setActiveTab('search');
+      return;
+    }
+    const googleQueryMatch = val.match(/^https?:\/\/(?:www\.)?google\.[a-z.]+\/search\?.*q=([^&]+)/i);
+    if (googleQueryMatch) {
+      const q = decodeURIComponent(googleQueryMatch[1].replace(/\+/g, ' '));
+      setInputUrlOrQuery(q);
+      handleSearch(q, true);
+      return;
+    }
+
     if (val.startsWith('http://') || val.startsWith('https://')) {
       setActiveUrl(val);
       setActiveTab('web');
       pushHistory({
         tab: 'web',
         urlOrQuery: val,
+      });
+    } else if (/^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(\/.*)?$/i.test(val)) {
+      const fullUrl = `https://${val}`;
+      setActiveUrl(fullUrl);
+      setActiveTab('web');
+      pushHistory({
+        tab: 'web',
+        urlOrQuery: fullUrl,
       });
     } else {
       handleSearch(val, true);
@@ -660,6 +892,90 @@ export const MiniGoogleBrowserModal: React.FC = () => {
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
+
+        {/* 💬 CHAT CONTEXT RESEARCH BAR */}
+        {currentChatResearch.hasContext && (
+          <div className="px-3.5 py-2.5 bg-gradient-to-r from-blue-950/40 via-stone-900 to-stone-950 border-b border-blue-900/40 shrink-0">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-5 h-5 rounded-md bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0">
+                  <MessageSquare className="w-3 h-3" />
+                </div>
+                <span className="text-xs font-bold text-blue-300 shrink-0">
+                  চ্যাট প্রসঙ্গ:
+                </span>
+                <span
+                  className="text-xs font-medium text-stone-200 truncate max-w-[220px] sm:max-w-[360px]"
+                  title={currentChatResearch.title || 'চলমান কথোপকথন'}
+                >
+                  {currentChatResearch.title || 'চলমান কথোপকথন'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {insertedFeedback && (
+                  <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800 animate-in fade-in">
+                    {insertedFeedback}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsChatContextOpen(!isChatContextOpen)}
+                  className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5 cursor-pointer"
+                >
+                  <span>{isChatContextOpen ? 'সংক্ষিপ্ত করুন' : 'প্রদর্শন করুন'}</span>
+                  {isChatContextOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+              </div>
+            </div>
+
+            {isChatContextOpen && (
+              <div className="space-y-1.5 pt-0.5">
+                {/* 1. Topics and Prompts from this chat */}
+                {currentChatResearch.topics.length > 0 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+                    <span className="text-[10px] text-stone-400 uppercase font-bold shrink-0">
+                      টপিক:
+                    </span>
+                    {currentChatResearch.topics.map((topic, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectChatTopic(topic)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 text-xs shrink-0 transition-all cursor-pointer font-sans shadow-2xs hover:scale-102"
+                        title={`গুগলে '${topic}' সার্চ করুন`}
+                      >
+                        <Search className="w-2.5 h-2.5 text-blue-400" />
+                        <span className="max-w-[180px] sm:max-w-[260px] truncate">{topic}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* 2. Detected Links and Sources from this chat */}
+                {currentChatResearch.urls.length > 0 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pt-0.5">
+                    <span className="text-[10px] text-emerald-400 uppercase font-bold shrink-0">
+                      লিংক:
+                    </span>
+                    {currentChatResearch.urls.map((linkObj, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectChatUrl(linkObj.url)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[11px] shrink-0 transition-all cursor-pointer font-sans hover:scale-102"
+                        title={`${linkObj.url} ওপেন করুন`}
+                      >
+                        <Globe className="w-2.5 h-2.5 text-emerald-400" />
+                        <span className="max-w-[170px] truncate">{linkObj.title || linkObj.url}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Quick Suggestion Pills */}
         <div className="px-3 py-1.5 bg-stone-950/60 border-b border-stone-800/80 flex items-center gap-1.5 overflow-x-auto text-[11px] shrink-0 scrollbar-none">
@@ -1050,7 +1366,7 @@ export const MiniGoogleBrowserModal: React.FC = () => {
                     {searchData.results.map((res, i) => (
                       <div
                         key={i}
-                        className="p-3.5 rounded-xl bg-stone-900 hover:bg-stone-850 border border-stone-800 transition-colors group space-y-1"
+                        className="p-3.5 rounded-xl bg-stone-900 hover:bg-stone-850 border border-stone-800 transition-colors group space-y-2"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[11px] text-stone-400 font-mono truncate">
@@ -1066,17 +1382,58 @@ export const MiniGoogleBrowserModal: React.FC = () => {
                             <ExternalLink className="w-3.5 h-3.5" />
                           </a>
                         </div>
-                        <a
-                          href={res.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-semibold text-blue-400 hover:underline block"
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveUrl(res.url);
+                            setActiveTab('web');
+                            pushHistory({
+                              tab: 'web',
+                              urlOrQuery: res.url,
+                            });
+                          }}
+                          className="text-sm font-semibold text-blue-400 hover:underline block text-left cursor-pointer"
                         >
                           {res.title}
-                        </a>
+                        </button>
                         <p className="text-xs text-stone-300 leading-relaxed">
                           {res.snippet}
                         </p>
+                        <div className="flex items-center gap-2 pt-1 border-t border-stone-800/80">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveUrl(res.url);
+                              setActiveTab('web');
+                              pushHistory({
+                                tab: 'web',
+                                urlOrQuery: res.url,
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600/15 hover:bg-blue-600/30 text-blue-400 text-[11px] font-medium transition-colors cursor-pointer"
+                          >
+                            <Globe className="w-3 h-3" />
+                            <span>এখানে পড়ুন</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleInsertReference(res.title, res.url, res.snippet)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-300 hover:text-white border border-stone-700/80 text-[11px] font-medium transition-colors cursor-pointer"
+                            title="চ্যাটে রেফারেন্স সাইটেশন যোগ করুন"
+                          >
+                            <Send className="w-3 h-3 text-blue-400" />
+                            <span>চ্যাটে পাঠান</span>
+                          </button>
+                          <a
+                            href={res.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-stone-400 hover:text-stone-200 text-[11px] transition-colors ml-auto"
+                          >
+                            <span>নতুন ট্যাবে</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1131,34 +1488,205 @@ export const MiniGoogleBrowserModal: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 4: WEB READER / IFRAME */}
+          {/* TAB 4: WEB READER & PROXY BROWSER */}
           {activeTab === 'web' && (
-            <div className="max-w-3xl mx-auto space-y-4">
-              <div className="p-4 rounded-2xl bg-stone-900 border border-stone-800 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs text-stone-400">বর্তমান ওয়েব অ্যাড্রেস:</p>
-                  <p className="text-sm font-mono text-blue-400 truncate">{activeUrl}</p>
+            <div className="max-w-4xl mx-auto space-y-3 flex-1 flex flex-col min-h-0">
+              {/* Web Header Toolbar */}
+              <div className="p-3 rounded-2xl bg-stone-900 border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
+                    HTTPS
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-mono text-stone-200 truncate" title={activeUrl}>
+                      {activeUrl}
+                    </p>
+                  </div>
                 </div>
-                <a
-                  href={activeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition-colors shrink-0"
-                >
-                  <span>ওয়েব পেজটি খুলুন</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                  {/* View Mode Switcher */}
+                  <div className="flex items-center rounded-xl bg-stone-950 p-0.5 border border-stone-800">
+                    <button
+                      type="button"
+                      onClick={() => setWebViewMode('proxy')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                        webViewMode === 'proxy'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-stone-400 hover:text-stone-200'
+                      }`}
+                    >
+                      <Globe className="w-3 h-3" />
+                      <span>লাইভ ওয়েব</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWebViewMode('reader')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                        webViewMode === 'reader'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-stone-400 hover:text-stone-200'
+                      }`}
+                    >
+                      <BookOpen className="w-3 h-3" />
+                      <span>রিডার ভিউ</span>
+                    </button>
+                  </div>
+
+                  {/* Actions */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRefreshKey((k) => k + 1);
+                      if (webViewMode === 'reader') loadReaderContent(activeUrl);
+                    }}
+                    className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-300 hover:text-white transition-colors cursor-pointer"
+                    title="রিলোড / রিফ্রেশ"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(activeUrl)}
+                    className="p-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-300 hover:text-white transition-colors cursor-pointer"
+                    title="লিঙ্ক কপি করুন"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleInsertReference(readerData?.title || activeUrl, activeUrl)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-blue-400 hover:text-blue-300 border border-stone-700 hover:border-blue-500/40 text-xs font-medium transition-colors cursor-pointer"
+                    title="চলমান চ্যাটে এই লিঙ্ক ও রেফারেন্স যোগ করুন"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">চ্যাটে রেফারেন্স</span>
+                  </button>
+                  <a
+                    href={activeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition-colors shrink-0 cursor-pointer shadow-xs"
+                    title="নতুন ট্যাবে খুলুন"
+                  >
+                    <span>নতুন ট্যাবে খুলুন</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
 
-              <div className="h-[450px] w-full rounded-2xl overflow-hidden border border-stone-800 bg-stone-900">
-                <iframe
-                  key={`web-${activeUrl}-${refreshKey}`}
-                  src={activeUrl}
-                  title="Web Viewer"
-                  sandbox="allow-scripts allow-same-origin allow-forms"
-                  className="w-full h-full border-0"
-                />
-              </div>
+              {/* Mode 1: Live Web View through Server Proxy (Bypasses X-Frame-Options) */}
+              {webViewMode === 'proxy' && (
+                <div className="space-y-2 flex-1 flex flex-col">
+                  <div className="h-[460px] sm:h-[520px] w-full rounded-2xl overflow-hidden border border-stone-800 bg-stone-950 relative shadow-inner">
+                    <iframe
+                      key={`web-proxy-${activeUrl}-${refreshKey}`}
+                      src={`/api/proxy?url=${encodeURIComponent(activeUrl)}`}
+                      title="Web Proxy Viewer"
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                      className="w-full h-full border-0 bg-white"
+                    />
+                  </div>
+
+                  {/* Informational Proxy Notice */}
+                  <div className="p-3 rounded-xl bg-stone-900 border border-stone-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-stone-400">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>
+                        ইন-অ্যাপ ক্লাউড প্রক্সি সক্রিয়: যেকোনো ওয়েবসাইটের X-Frame-Options ও ফ্রেম ব্লকিং দূর করে সরাসরি অ্যাপের ভেতরে রেন্ডার করা হচ্ছে।
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setWebViewMode('reader')}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-medium text-[11px] border border-emerald-500/20 transition-colors cursor-pointer"
+                      >
+                        স্মার্ট রিডার ভিউ 📖
+                      </button>
+                      <a
+                        href={activeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-300 text-[11px] transition-colors inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>সরাসরি সাইট</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Mode 2: Clean Reader View */}
+              {webViewMode === 'reader' && (
+                <div className="p-5 rounded-2xl bg-stone-900 border border-emerald-500/30 space-y-4 shadow-lg min-h-[420px]">
+                  {isReaderLoading ? (
+                    <div className="py-20 text-center space-y-3">
+                      <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                      <p className="text-xs text-stone-400">ওয়েব পেজের টেক্সট বিশ্লেষণ ও এক্সট্র্যাক্ট করা হচ্ছে...</p>
+                    </div>
+                  ) : readerData ? (
+                    <div className="space-y-4">
+                      {/* Reader Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-3">
+                        <div className="min-w-0">
+                          <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
+                            {readerData.title}
+                          </h3>
+                          <p className="text-xs text-emerald-400 font-mono mt-0.5">{readerData.domain}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleToggleSpeakReader}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-xs ${
+                              isReaderSpeaking
+                                ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                            }`}
+                          >
+                            {isReaderSpeaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                            <span>{isReaderSpeaking ? 'থামান' : 'পড়ে শোনান'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(readerData.content)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-750 text-stone-200 text-xs transition-colors cursor-pointer"
+                          >
+                            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copied ? 'কপি হয়েছে' : 'টেক্সট কপি'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setWebViewMode('proxy')}
+                            className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 text-xs font-medium transition-colors cursor-pointer"
+                          >
+                            লাইভ ওয়েব দেখুন
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Clean Text Content */}
+                      <div className="prose prose-invert prose-stone max-w-none text-xs sm:text-sm text-stone-200 leading-relaxed font-sans whitespace-pre-line space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                        {readerData.content}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-16 text-center space-y-3">
+                      <BookOpen className="w-10 h-10 text-stone-600 mx-auto" />
+                      <p className="text-sm text-stone-400">ওয়েব পেজের টেক্সট পাওয়া যায়নি।</p>
+                      <button
+                        type="button"
+                        onClick={() => setWebViewMode('proxy')}
+                        className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold cursor-pointer"
+                      >
+                        লাইভ ব্রাউজারে দেখুন
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

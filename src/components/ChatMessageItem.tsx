@@ -34,12 +34,15 @@ import {
   ChevronRight,
   RotateCcw,
   Languages,
-  Sliders
+  Sliders,
+  Hash,
+  WrapText,
 } from 'lucide-react';
 import { useMusicPlayer } from '../context/MusicPlayerContext';
 import { useMiniBrowser } from '../context/MiniBrowserContext';
 import { ChatMessage, GroundingChunk } from '../types';
 import { ContinuousTTSPlayer } from '../utils/textToSpeech';
+import { highlightCode, normalizeLanguage, getExtensionForLanguage } from '../utils/prismLanguages';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -58,9 +61,21 @@ const CodeBlockItem: React.FC<{
   children: React.ReactNode;
   onPreviewCode: (code: string, language: string) => void;
   downloadAsFile: (content: string, filename: string) => void;
-}> = ({ language, codeString, children, onPreviewCode, downloadAsFile }) => {
+}> = ({ language, codeString, onPreviewCode, downloadAsFile }) => {
   const [copied, setCopied] = useState(false);
-  const canPreview = ['html', 'js', 'javascript', 'svg', 'css'].includes(language.toLowerCase());
+  const [showLineNumbers, setShowLineNumbers] = useState(true);
+  const [wrapLines, setWrapLines] = useState(false);
+
+  const normLanguage = normalizeLanguage(language);
+  const canPreview = ['html', 'js', 'javascript', 'svg', 'css', 'markup'].includes(normLanguage);
+  
+  const lines = React.useMemo(() => codeString.split('\n'), [codeString]);
+  const lineCount = lines.length;
+
+  // Prism.js Syntax Highlighting
+  const highlightedHtml = React.useMemo(() => {
+    return highlightCode(codeString, language);
+  }, [codeString, language]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(codeString);
@@ -68,35 +83,82 @@ const CodeBlockItem: React.FC<{
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDownload = () => {
+    const ext = getExtensionForLanguage(language);
+    downloadAsFile(codeString, `code-snippet.${ext}`);
+  };
+
   return (
-    <div className="my-4 rounded-xl overflow-hidden border border-stone-700/80 bg-stone-900 text-stone-100 shadow-md">
-      {/* Code Block Header */}
-      <div className="flex items-center justify-between px-3.5 py-2 bg-stone-950/90 border-b border-stone-800 text-xs font-mono">
-        <div className="flex items-center gap-2">
-          <FileCode className="w-3.5 h-3.5 text-stone-400" />
-          <span className="text-stone-300 font-semibold uppercase">{language || 'code'}</span>
+    <div className="my-4 rounded-2xl overflow-hidden border border-stone-800 bg-[#121214] text-stone-100 shadow-xl ring-1 ring-white/5 transition-all">
+      {/* Code Block Header Toolbar */}
+      <div className="flex items-center justify-between px-3.5 py-2.5 bg-[#18181b]/95 border-b border-stone-800/80 text-xs font-mono">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.5)] shrink-0" />
+          <FileCode className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+          <span className="text-stone-200 font-semibold tracking-wide uppercase text-[11px] sm:text-xs truncate">
+            {language || 'code'}
+          </span>
+          <span className="text-[10px] text-stone-500 font-normal hidden sm:inline">
+            • {lineCount} {lineCount === 1 ? 'line' : 'lines'}
+          </span>
         </div>
-        <div className="flex items-center gap-1.5">
-          {canPreview && (
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Toggle Line Wrap */}
+          <button
+            type="button"
+            onClick={() => setWrapLines((w) => !w)}
+            className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+              wrapLines
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                : 'hover:bg-stone-800 text-stone-400 hover:text-stone-200'
+            }`}
+            title={wrapLines ? 'লাইন আন-র‍্যাপ করুন (Unwrap)' : 'লাইন র‍্যাপ করুন (Wrap Lines)'}
+          >
+            <WrapText className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Toggle Line Numbers */}
+          {lineCount > 1 && (
             <button
-              onClick={() => onPreviewCode(codeString, language)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors cursor-pointer"
-              title="লাইভ প্রিভিউ দেখুন"
+              type="button"
+              onClick={() => setShowLineNumbers((n) => !n)}
+              className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                showLineNumbers
+                  ? 'bg-stone-800 text-stone-200 border border-stone-700/60'
+                  : 'hover:bg-stone-800 text-stone-500 hover:text-stone-300'
+              }`}
+              title={showLineNumbers ? 'লাইন নম্বর লুকান' : 'লাইন নম্বর দেখান'}
             >
-              <Play className="w-3 h-3" />
-              <span>Run / Preview</span>
+              <Hash className="w-3.5 h-3.5" />
             </button>
           )}
+
+          {canPreview && (
+            <button
+              type="button"
+              onClick={() => onPreviewCode(codeString, language)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 transition-colors cursor-pointer text-xs font-medium"
+              title="লাইভ প্রিভিউ দেখুন"
+            >
+              <Play className="w-3 h-3 fill-current" />
+              <span className="hidden sm:inline">Run</span>
+            </button>
+          )}
+
           <button
-            onClick={() => downloadAsFile(codeString, `code-snippet.${language || 'txt'}`)}
-            className="p-1.5 rounded hover:bg-stone-800 text-stone-400 hover:text-stone-200 transition-colors cursor-pointer"
-            title="কোড ফাইল ডাউনলোড করুন"
+            type="button"
+            onClick={handleDownload}
+            className="p-1.5 rounded-lg hover:bg-stone-800 text-stone-400 hover:text-stone-200 transition-colors cursor-pointer"
+            title={`কোড ফাইল ডাউনলোড করুন (.${getExtensionForLanguage(language)})`}
           >
             <Download className="w-3.5 h-3.5" />
           </button>
+
           <button
+            type="button"
             onClick={handleCopyCode}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all cursor-pointer text-xs ${
               copied
                 ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30'
                 : 'bg-stone-800/80 hover:bg-stone-800 text-stone-300 hover:text-white border border-stone-700/60'
@@ -111,16 +173,45 @@ const CodeBlockItem: React.FC<{
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                <span>কপি কোড</span>
+                <span>কপি</span>
               </>
             )}
           </button>
         </div>
       </div>
-      {/* Code Content */}
-      <pre className="p-4 overflow-x-auto text-xs font-mono leading-relaxed bg-stone-900 selection:bg-emerald-700">
-        <code>{children}</code>
-      </pre>
+
+      {/* Code Content with Prism.js Highlighting */}
+      <div className="relative overflow-hidden bg-[#121214]">
+        <pre
+          className={`p-4 text-xs sm:text-[13px] font-mono leading-relaxed selection:bg-emerald-700/50 selection:text-white ${
+            wrapLines ? 'whitespace-pre-wrap break-words' : 'overflow-x-auto whitespace-pre'
+          }`}
+        >
+          {showLineNumbers && !wrapLines ? (
+            <div className="flex">
+              <div
+                className="select-none text-stone-600 pr-3.5 text-right font-mono text-[11px] sm:text-xs leading-relaxed shrink-0 border-r border-stone-800/80"
+                aria-hidden="true"
+              >
+                {lines.map((_, i) => (
+                  <div key={i}>{i + 1}</div>
+                ))}
+              </div>
+              <div className="pl-4 min-w-0 flex-1">
+                <code
+                  className={`prism-code-block language-${normLanguage}`}
+                  dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+                />
+              </div>
+            </div>
+          ) : (
+            <code
+              className={`prism-code-block language-${normLanguage}`}
+              dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+            />
+          )}
+        </pre>
+      </div>
     </div>
   );
 };
@@ -498,6 +589,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   onOpenHostingGuide,
   isGenerating = false,
 }) => {
+  const miniBrowser = useMiniBrowser();
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -872,16 +964,30 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       }
 
       return (
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          referrerPolicy="no-referrer"
-          className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 underline font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/40 px-1 py-0.5 rounded transition-colors"
-        >
-          <span>{children}</span>
-          <ExternalLink className="w-3 h-3 inline shrink-0" />
-        </a>
+        <span className="inline-flex items-center gap-1 my-0.5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              miniBrowser.openBrowser(href, 'web');
+            }}
+            title="ইন-অ্যাপ মিনি ব্রাউজারে পড়ুন"
+            className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 underline font-medium hover:bg-emerald-50 dark:hover:bg-emerald-950/40 px-1 py-0.5 rounded transition-colors cursor-pointer text-left"
+          >
+            <span>{children}</span>
+            <Globe className="w-3 h-3 inline shrink-0 opacity-70" />
+          </button>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerPolicy="no-referrer"
+            title="নতুন ব্রাউজার ট্যাবে খুলুন"
+            className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 p-0.5 rounded hover:bg-stone-200/50 dark:hover:bg-stone-800 transition-colors"
+          >
+            <ExternalLink className="w-2.5 h-2.5 inline shrink-0" />
+          </a>
+        </span>
       );
     },
     th({ children }: any) {
@@ -1062,24 +1168,50 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                   })();
 
                   return (
-                    <a
+                    <div
                       key={idx}
-                      href={chunk.web.uri}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      referrerPolicy="no-referrer"
                       className="p-2.5 rounded-lg border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-800/60 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 transition-all flex items-start justify-between gap-2 group/link text-xs"
                     >
-                      <div className="min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          miniBrowser.openBrowser(chunk.web!.uri, 'web', {
+                            urls: [{ url: chunk.web!.uri, title: chunk.web!.title || domain }],
+                          });
+                        }}
+                        className="min-w-0 text-left cursor-pointer flex-1"
+                        title="ইন-অ্যাপ মিনি গুগল ব্রাউজারে পড়ুন"
+                      >
                         <p className="font-medium text-stone-900 dark:text-stone-100 truncate group-hover/link:text-blue-600 dark:group-hover/link:text-blue-400">
                           {chunk.web.title || domain}
                         </p>
-                        <p className="text-[11px] text-stone-600 dark:text-stone-400 truncate mt-0.5">
-                          {domain}
+                        <p className="text-[11px] text-stone-600 dark:text-stone-400 truncate mt-0.5 flex items-center gap-1">
+                          <Globe className="w-2.5 h-2.5 text-blue-500" />
+                          <span>{domain}</span>
                         </p>
+                      </button>
+                      <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            miniBrowser.openBrowser(chunk.web!.uri, 'web');
+                          }}
+                          className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 cursor-pointer"
+                          title="মিনি ব্রাউজারে দেখুন"
+                        >
+                          <Globe className="w-3.5 h-3.5" />
+                        </button>
+                        <a
+                          href={chunk.web.uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-400 hover:text-stone-200"
+                          title="নতুন ট্যাবে খুলুন"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
                       </div>
-                      <ExternalLink className="w-3.5 h-3.5 text-stone-600 group-hover/link:text-blue-600 dark:group-hover/link:text-blue-400 shrink-0 mt-0.5" />
-                    </a>
+                    </div>
                   );
                 })}
               </div>
@@ -1091,12 +1223,16 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             <div className="mt-2 flex items-center gap-1.5 flex-wrap">
               <span className="text-[11px] text-stone-600 dark:text-stone-400">অনুসন্ধান:</span>
               {message.searchQueries.map((q, idx) => (
-                <span
+                <button
                   key={idx}
-                  className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700"
+                  type="button"
+                  onClick={() => miniBrowser.openBrowser(q, 'search')}
+                  className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-md bg-stone-100 hover:bg-blue-50 dark:bg-stone-800 dark:hover:bg-blue-950/40 text-stone-600 hover:text-blue-600 dark:text-stone-300 dark:hover:text-blue-300 border border-stone-200 hover:border-blue-300 dark:border-stone-700 transition-colors cursor-pointer"
+                  title={`মিনি ব্রাউজারে '${q}' অনুসন্ধান করুন`}
                 >
-                  "{q}"
-                </span>
+                  <Search className="w-2.5 h-2.5 text-blue-500" />
+                  <span>"{q}"</span>
+                </button>
               ))}
             </div>
           )}
@@ -1126,6 +1262,24 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                     <span>কপি করুন</span>
                   </>
                 )}
+              </button>
+
+              {/* Mini Browser Research Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const primaryQuery = message.searchQueries?.[0] || message.text.slice(0, 60).replace(/\n.*/s, '');
+                  miniBrowser.openBrowser(primaryQuery, 'search', {
+                    currentPrompt: primaryQuery,
+                    topics: message.searchQueries || [],
+                    urls: message.groundingChunks?.map((c) => ({ url: c.web?.uri || '', title: c.web?.title })).filter((u) => u.url),
+                  });
+                }}
+                title="মিনি গুগল ব্রাউজারে এই বিষয়টি নিয়ে আরও জানুন বা রিসার্চ করুন"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50/80 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 transition-all cursor-pointer shadow-2xs"
+              >
+                <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>গুগলে রিসার্চ</span>
               </button>
 
               {/* Text to Speech Button, Voice & Speed Selector */}

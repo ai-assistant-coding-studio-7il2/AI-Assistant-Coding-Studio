@@ -340,8 +340,14 @@ YOUR IDENTITY & ORIGIN (আপনার পরিচয় ও সৃষ্টি):
     - সশ্রদ্ধ, মার্জিত ও সুন্দর ভাষায় আত্মবিশ্বাসের সাথে উত্তর দিন।
     - স্পষ্ট করে বলুন:
       "আমি 'AI Assistant & Coding Studio' (এআই অ্যাসিস্ট্যান্ট অ্যান্ড কোডিং স্টুডিও)-এর নিজস্ব স্মার্ট কৃত্রিম বুদ্ধিমত্তা (AI) সহকারী।
-      আমাকে তৈরি ও ডিজাইন করেছে আমাদের সফটওয়্যার ডেভেলপমেন্ট টিম। আমার পেছনে বুদ্ধিমত্তা ও ভাষা মডেল হিসেবে কাজ করছে Google-এর অত্যাধুনিক Gemini 3.8 Flash ইঞ্জিন।
+      আমাদের প্ল্যাটফর্ম ও সফটওয়্যার ইকোসিস্টেমের প্রতিষ্ঠাতা এবং প্রধান সফটওয়্যার আর্কিটেক্ট শেখ ফরিদ (Sheikh Farid - সিরাজগঞ্জ, বাংলাদেশ)। তিনি একজন স্বশিক্ষিত সফটওয়্যার স্থপতি (Self-taught Software Architect) ও ফুল-স্ট্যাক ডেভেলপার, এবং একই সাথে সিরাজগঞ্জের ঐতিহ্যবাহী পারিবারিক হোটেল 'হোটেল আল শেখ ফরিদ' পরিচালনার সাথে যুক্ত। আমার পেছনে বুদ্ধিমত্তা ও ভাষা মডেল হিসেবে কাজ করছে Google-এর অত্যাধুনিক Gemini 3.8 Flash ইঞ্জিন।
       বাংলা ও ইংরেজি—উভয় ভাষায় প্রোগ্রামিং/কোডিং, টেকনিক্যাল সমস্যা সমাধান, অফিশিয়াল দরখাস্ত ও চিঠি লেখা, এ টু জেড জনসেবা ও জরুরি তথ্য প্রদান, এবং দ্রুত গবেষণায় আপনাকে সহায়তা করাই আমার মূল দায়িত্ব।"
+- আপনার প্রতিষ্ঠাতা ও সুপার অ্যাডমিন পরিচয় (Founder & Super Admin Knowledge Context):
+  * প্রতিষ্ঠাতা ও মূল মালিক: শেখ ফরিদ (Sheikh Farid), জন্ম: ১৫ জুন, ১৯৯৪ (বয়স ৩২ বছর), অবস্থান: সিরাজগঞ্জ, বাংলাদেশ।
+  * পেশা ও পরিচয়: স্বশিক্ষিত সফটওয়্যার স্থপতি ও ফুল-স্ট্যাক ডেভেলপার; পারিবারিক হোটেল ব্যবসা 'হোটেল আল শেখ ফরিদ'-এর পরিচালক।
+  * ফ্ল্যাগশিপ প্রজেক্ট ও কোম্পানি: ScrollVerse (গভটেক সফটওয়্যার ইকোসিস্টেম), Sheikh Code Exchange (৪২তম ফ্ল্যাগশিপ প্রজেক্ট), RubelPay / RubelBank, Synergy BPO Hub, হোটেল আল শেখ ফরিদ ও মিষ্টির দোকান ম্যানেজমেন্ট (Next.js + Dexie.js + Tailwind CSS offline-first PWA), NotorBotor, Ideation Spark, AutoPay.Ltd, NoorNexus Sovereign OS v3, NoorAI।
+  * পারিবারিক পরিচয়: পিতা মো. আব্দুল বারিক শেখ, মাতা আম্মা, স্ত্রী খুকুমণি বেগম (Khukumoni Begum), এক কন্যা ও এক পুত্র সন্তান।
+  * অ্যাডমিন আইডেন্টিটি: Role: "Super Admin & Founder", Owner: "Sheikh Farid", Entity: "Hotel Al Sheikh Farid", Location: "Sirajganj, Bangladesh"।
 - আপনার মূল লক্ষ্য ও বিশেষত্ব:
   * সম্পূর্ণ বিজ্ঞাপনমুক্ত, দ্রুতগতির এবং নির্ভরযোগ্য সেবা দেওয়া।
   * বাংলা ভাষায় সাবলীল, প্রাঞ্জল ও ব্যাকরণগতভাবে শুদ্ধ কথোপকথন।
@@ -585,6 +591,151 @@ Assistant response:
     console.warn('Error in /api/session/title:', error?.message || error);
     const fallback = (req.body?.userMessage || 'নতুন কথোপকথন').slice(0, 30);
     res.json({ title: fallback });
+  }
+});
+
+// Live Web Proxy Endpoint to bypass X-Frame-Options and CSP frame-ancestors
+app.get('/api/proxy', async (req, res) => {
+  const targetUrl = req.query.url as string;
+  if (!targetUrl || typeof targetUrl !== 'string') {
+    return res.status(400).send('URL query parameter is required');
+  }
+
+  try {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(targetUrl.startsWith('http') ? targetUrl : `https://${targetUrl}`);
+    } catch {
+      return res.status(400).send('Invalid URL format');
+    }
+
+    const response = await fetch(parsedUrl.toString(), {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'bn-BD,bn;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
+      redirect: 'follow',
+    });
+
+    const contentType = response.headers.get('content-type') || 'text/html';
+
+    // Remove frame blocking security headers
+    res.removeHeader('X-Frame-Options');
+    res.removeHeader('Content-Security-Policy');
+    res.removeHeader('Content-Security-Policy-Report-Only');
+
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', contentType);
+
+    // If HTML, inject <base> tag and click interceptor
+    if (contentType.includes('text/html')) {
+      let html = await response.text();
+      const baseTag = `<base href="${parsedUrl.origin}${parsedUrl.pathname}">`;
+      const proxyScript = `
+        <script>
+          (function() {
+            document.addEventListener('click', function(e) {
+              var a = e.target.closest('a');
+              if (a && a.href && !a.href.startsWith('javascript:') && !a.href.startsWith('#')) {
+                e.preventDefault();
+                window.location.href = '/api/proxy?url=' + encodeURIComponent(a.href);
+              }
+            }, true);
+          })();
+        </script>
+      `;
+
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', `<head>${baseTag}${proxyScript}`);
+      } else if (html.includes('<head ')) {
+        html = html.replace(/<head[^>]*>/, `$&${baseTag}${proxyScript}`);
+      } else {
+        html = `${baseTag}${proxyScript}${html}`;
+      }
+
+      return res.send(html);
+    } else {
+      const arrayBuffer = await response.arrayBuffer();
+      return res.end(Buffer.from(arrayBuffer));
+    }
+  } catch (err: any) {
+    console.error('Web proxy error for URL:', targetUrl, err?.message);
+    return res.status(502).send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>ওয়েব পেজ লোড ব্যর্থ</title>
+          <style>
+            body { font-family: system-ui, sans-serif; background: #09090b; color: #f4f4f5; padding: 40px 20px; text-align: center; }
+            .card { max-width: 520px; margin: 40px auto; background: #18181b; border: 1px solid #27272a; border-radius: 20px; padding: 28px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+            h2 { color: #f87171; margin-top: 0; font-size: 18px; }
+            p { font-size: 13px; line-height: 1.6; color: #a1a1aa; margin: 12px 0; }
+            .url { font-family: monospace; font-size: 12px; color: #60a5fa; word-break: break-all; background: #09090b; padding: 8px 12px; border-radius: 8px; border: 1px solid #27272a; margin: 16px 0; }
+            .btn { display: inline-flex; align-items: center; justify-content: center; margin-top: 10px; padding: 10px 20px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 12px; font-size: 13px; font-weight: 600; }
+            .btn:hover { background: #1d4ed8; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>ওয়েব পেজটি সরাসরি লোড করা যায়নি</h2>
+            <p>ওয়েবসাইটটি সরাসরি সংযোগ গ্রহণ করছে না বা ক্লাউড সার্ভার থেকে সরাসরি আইফ্রেমে লোড করা নিষিদ্ধ করেছে।</p>
+            <div class="url">${targetUrl}</div>
+            <a class="btn" href="${targetUrl}" target="_blank" rel="noopener noreferrer">নতুন ট্যাবে খুলুন (Open in New Tab) ↗</a>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// AI Web Reader Extractor: Extracts article text, clean markdown, and metadata
+app.get('/api/proxy/reader', async (req, res) => {
+  const targetUrl = req.query.url as string;
+  if (!targetUrl) {
+    return res.status(400).json({ error: 'URL parameter required' });
+  }
+
+  try {
+    const parsedUrl = new URL(targetUrl.startsWith('http') ? targetUrl : `https://${targetUrl}`);
+    const response = await fetch(parsedUrl.toString(), {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'bn-BD,bn;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
+    });
+
+    const html = await response.text();
+
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : parsedUrl.hostname;
+
+    const cleanHtml = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, '')
+      .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, '')
+      .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, '')
+      .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, '');
+
+    const paragraphMatches = cleanHtml.match(/<(p|h1|h2|h3|h4|li)[^>]*>([\s\S]*?)<\/\1>/gi) || [];
+    const textPieces = paragraphMatches
+      .map((p) => p.replace(/<[^>]+>/g, '').trim())
+      .filter((t) => t.length > 25);
+
+    const articleText = textPieces.slice(0, 50).join('\n\n');
+
+    return res.json({
+      title,
+      url: targetUrl,
+      domain: parsedUrl.hostname,
+      content: articleText || 'ওয়েব পেজের টেক্সট এক্সট্র্যাক্ট করা সম্ভব হয়নি। লাইভ মোডে পেজটি দেখুন।',
+      length: articleText.length,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to read web page' });
   }
 });
 

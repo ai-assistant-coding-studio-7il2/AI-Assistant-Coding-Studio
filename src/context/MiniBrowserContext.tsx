@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 
+export interface ChatResearchContext {
+  sessionTitle?: string;
+  currentPrompt?: string;
+  topics?: string[];
+  urls?: Array<{ url: string; title?: string }>;
+}
+
 export interface MiniBrowserContextType {
   isOpen: boolean;
   activeUrl: string;
@@ -7,12 +14,18 @@ export interface MiniBrowserContextType {
   activeVideoId?: string;
   activeVideoTitle?: string;
   activeTab: 'search' | 'youtube' | 'web' | 'lyrics';
+  chatContext: ChatResearchContext | null;
   setActiveTab: (tab: 'search' | 'youtube' | 'web' | 'lyrics') => void;
-  openBrowser: (urlOrQuery?: string, tab?: 'search' | 'youtube' | 'web' | 'lyrics') => void;
+  openBrowser: (
+    urlOrQuery?: string,
+    tab?: 'search' | 'youtube' | 'web' | 'lyrics',
+    context?: ChatResearchContext
+  ) => void;
   openYouTubeInBrowser: (videoId: string, title?: string, originalUrl?: string) => void;
   closeBrowser: () => void;
   setSearchQuery: (query: string) => void;
   setActiveUrl: (url: string) => void;
+  setChatContext: (context: ChatResearchContext | null) => void;
 }
 
 const MiniBrowserContext = createContext<MiniBrowserContextType | undefined>(undefined);
@@ -24,23 +37,41 @@ export const MiniBrowserProvider: React.FC<{ children: ReactNode }> = ({ childre
   const [activeVideoId, setActiveVideoId] = useState<string | undefined>(undefined);
   const [activeVideoTitle, setActiveVideoTitle] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<'search' | 'youtube' | 'web' | 'lyrics'>('search');
+  const [chatContext, setChatContext] = useState<ChatResearchContext | null>(null);
 
-  const openBrowser = useCallback((urlOrQuery?: string, tab: 'search' | 'youtube' | 'web' | 'lyrics' = 'search') => {
+  const openBrowser = useCallback((
+    urlOrQuery?: string,
+    tab: 'search' | 'youtube' | 'web' | 'lyrics' = 'search',
+    context?: ChatResearchContext
+  ) => {
+    if (context) {
+      setChatContext(context);
+    }
     if (urlOrQuery) {
-      if (urlOrQuery.startsWith('http://') || urlOrQuery.startsWith('https://')) {
-        setActiveUrl(urlOrQuery);
-        // Check if it's a youtube url
-        const ytMatch = urlOrQuery.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/i);
+      const trimmed = urlOrQuery.trim();
+      // If it's a google domain, default to the search engine tab
+      if (/^https?:\/\/(?:www\.)?google\.[a-z.]+(?:\/)?$/i.test(trimmed)) {
+        setActiveTab('search');
+      } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        setActiveUrl(trimmed);
+        const ytMatch = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/i);
         if (ytMatch) {
           setActiveVideoId(ytMatch[1]);
           setActiveTab('youtube');
         } else {
-          setActiveTab(tab);
+          setActiveTab(tab === 'search' ? 'web' : tab);
         }
+      } else if (/^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}(\/.*)?$/i.test(trimmed)) {
+        // Plain domain typed by user (e.g. wikipedia.org, bbc.com)
+        const fullUrl = `https://${trimmed}`;
+        setActiveUrl(fullUrl);
+        setActiveTab('web');
       } else {
-        setSearchQuery(urlOrQuery);
+        setSearchQuery(trimmed);
         setActiveTab('search');
       }
+    } else {
+      setActiveTab(tab);
     }
     setIsOpen(true);
   }, []);
@@ -68,6 +99,8 @@ export const MiniBrowserProvider: React.FC<{ children: ReactNode }> = ({ childre
         activeVideoTitle,
         activeTab,
         setActiveTab,
+        chatContext,
+        setChatContext,
         openBrowser,
         openYouTubeInBrowser,
         closeBrowser,

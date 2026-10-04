@@ -26,7 +26,8 @@ import {
   ChevronRight,
   Filter,
   Volume2,
-  Gauge
+  Gauge,
+  Crown
 } from 'lucide-react';
 import { ChatSession, AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -50,6 +51,7 @@ interface SidebarProps {
   onOpenFreelanceAgent?: () => void;
   onOpenGoogleDrive?: () => void;
   onOpenTTSSettings?: () => void;
+  onOpenFounderProfile?: () => void;
   onOpenShare?: (config?: { shareType?: 'app' | 'session' }) => void;
   onSelectMode: (mode: AssistantMode) => void;
   currentMode: AssistantMode;
@@ -70,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenFreelanceAgent,
   onOpenGoogleDrive,
   onOpenTTSSettings,
+  onOpenFounderProfile,
   onOpenShare,
   onSelectMode,
   currentMode,
@@ -367,7 +370,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <button
                     id="sidebar-prog-mini-browser"
                     onClick={() => {
-                      miniBrowser.openBrowser('https://www.google.com');
+                      miniBrowser.openBrowser();
                       if (window.innerWidth < 768) onClose();
                     }}
                     className="w-full flex items-center justify-between p-2.5 rounded-xl bg-blue-50/70 hover:bg-blue-100/80 dark:bg-blue-950/30 dark:hover:bg-blue-950/60 border border-blue-300/50 dark:border-blue-800/50 text-left transition-all group cursor-pointer shadow-2xs"
@@ -413,6 +416,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                       </div>
                       <ChevronRight className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
+                  {/* Founder & Super Admin Profile */}
+                  {onOpenFounderProfile && (
+                    <button
+                      id="sidebar-prog-founder-profile"
+                      onClick={() => {
+                        onOpenFounderProfile();
+                        if (window.innerWidth < 768) onClose();
+                      }}
+                      className="w-full flex items-center justify-between p-2.5 rounded-xl bg-amber-50/80 hover:bg-amber-100/90 dark:bg-amber-950/40 dark:hover:bg-amber-950/70 border border-amber-300/60 dark:border-amber-800/60 text-left transition-all group cursor-pointer shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                          <Crown className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-amber-950 dark:text-amber-200 truncate flex items-center gap-1.5">
+                            <span>প্রতিষ্ঠাতা ও সুপার অ্যাডমিন</span>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-amber-500/20 text-amber-700 dark:text-amber-300">Owner</span>
+                          </p>
+                          <p className="text-[10px] text-amber-700/80 dark:text-amber-400/80 truncate">
+                            শেখ ফরিদ (হোটেল আল শেখ ফরিদ)
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                   )}
 

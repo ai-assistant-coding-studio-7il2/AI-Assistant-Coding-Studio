@@ -41,6 +41,7 @@ import { MiniBrowserProvider } from './context/MiniBrowserContext';
 import { MiniGoogleBrowserModal } from './components/MiniGoogleBrowserModal';
 import { GoogleDriveModal } from './components/GoogleDriveModal';
 import { TTSSettingsModal } from './components/TTSSettingsModal';
+import { FounderProfileModal } from './components/FounderProfileModal';
 import { LandingPageVideoShowcase } from './components/LandingPageVideoShowcase';
 import { useAuth } from './context/AuthContext';
 import { saveSessionToCloud, loadSessionsFromCloud, deleteSessionFromCloud } from './lib/firebase';
@@ -104,6 +105,7 @@ export default function App() {
   const [isGoogleDriveOpen, setIsGoogleDriveOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [ttsSettingsModalOpen, setTtsSettingsModalOpen] = useState(false);
+  const [founderProfileModalOpen, setFounderProfileModalOpen] = useState(false);
   const locationState = useLiveLocation();
   const [sessionToExport, setSessionToExport] = useState<ChatSession | null>(null);
 
@@ -756,6 +758,7 @@ export default function App() {
         onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
         onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
         onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
+        onOpenFounderProfile={() => setFounderProfileModalOpen(true)}
         onOpenShare={handleOpenShareModal}
         onSelectMode={setMode}
         currentMode={mode}
@@ -771,6 +774,7 @@ export default function App() {
           onOpenFreelanceAgent={() => setFreelanceAgentModalOpen(true)}
           onOpenGoogleDrive={() => setIsGoogleDriveOpen(true)}
           onOpenTTSSettings={() => setTtsSettingsModalOpen(true)}
+          onOpenFounderProfile={() => setFounderProfileModalOpen(true)}
           onNewChat={handleNewChat}
           onClearChat={handleClearChat}
           onExportChat={handleExportChat}
@@ -1200,12 +1204,23 @@ export default function App() {
       />
 
       {/* In-App Mini Google Web Browser & Music Player Modal */}
-      <MiniGoogleBrowserModal />
+      <MiniGoogleBrowserModal
+        activeSession={activeSession}
+        onInsertIntoChat={(text) => {
+          setInput((prev) => (prev ? `${prev}\n\n${text}` : text));
+        }}
+      />
 
       {/* Text-to-Speech Engine Speed & Voice Settings Modal */}
       <TTSSettingsModal
         isOpen={ttsSettingsModalOpen}
         onClose={() => setTtsSettingsModalOpen(false)}
+      />
+
+      {/* Founder & Super Admin Profile Modal */}
+      <FounderProfileModal
+        isOpen={founderProfileModalOpen}
+        onClose={() => setFounderProfileModalOpen(false)}
       />
 
       {/* PWA Offline Indicator */}

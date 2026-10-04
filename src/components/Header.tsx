@@ -25,7 +25,9 @@ import {
   Bot,
   HardDrive,
   Volume2,
-  Gauge
+  Gauge,
+  Crown,
+  UserCheck
 } from 'lucide-react';
 import { AssistantMode } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -42,6 +44,7 @@ interface HeaderProps {
   onOpenFreelanceAgent?: () => void;
   onOpenGoogleDrive?: () => void;
   onOpenTTSSettings?: () => void;
+  onOpenFounderProfile?: () => void;
   onNewChat: () => void;
   onClearChat: () => void;
   onExportChat: () => void;
@@ -65,6 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenFreelanceAgent,
   onOpenGoogleDrive,
   onOpenTTSSettings,
+  onOpenFounderProfile,
   onNewChat,
   onClearChat,
   onExportChat,
@@ -324,6 +328,18 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
+        {onOpenFounderProfile && (
+          <button
+            id="open-founder-profile-header-btn"
+            onClick={onOpenFounderProfile}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition-colors shadow-xs cursor-pointer"
+            title="প্রতিষ্ঠাতা ও সুপার অ্যাডমিন প্রোফাইল (Sheikh Farid)"
+          >
+            <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            <span className="hidden xl:inline">প্রতিষ্ঠাতা</span>
+          </button>
+        )}
+
         <button
           id="header-new-chat-btn"
           onClick={onNewChat}
@@ -332,6 +348,24 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Plus className="w-3.5 h-3.5" />
           <span className="hidden md:inline">নতুন চ্যাট</span>
+        </button>
+
+        {/* Quick Mini Google Browser Research Launcher */}
+        <button
+          type="button"
+          onClick={() => {
+            const query = activeSessionTitle && activeSessionTitle !== 'নতুন কথোপকথন'
+              ? activeSessionTitle
+              : '';
+            miniBrowser.openBrowser(query, 'search', {
+              sessionTitle: activeSessionTitle,
+            });
+          }}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-stone-700 dark:text-stone-300 hover:text-blue-600 dark:hover:text-blue-400 bg-stone-100 hover:bg-stone-200/80 dark:bg-stone-800 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 transition-colors shadow-xs cursor-pointer"
+          title="চলমান চ্যাট প্রসঙ্গ নিয়ে মিনি গুগল ব্রাউজারে রিসার্চ করুন"
+        >
+          <Globe className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          <span className="hidden lg:inline">চ্যাট রিসার্চ</span>
         </button>
 
         {/* PWA Install Button */}
